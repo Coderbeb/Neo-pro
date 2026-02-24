@@ -1,0 +1,12 @@
+﻿C:\Users\rajhr\AppData\Local\Android\Sdk\platform-
+tools\adb.exe : adb.exe: device offline
+At line:1 char:13
++ $packages = C:\Users\rajhr\AppData\Local\Android
+\Sdk\platform-tools\a ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (adb. 
+   exe: device offline:String) [], RemoteExcepti  
+  on
+    + FullyQualifiedErrorId : NativeCommandError
+ 

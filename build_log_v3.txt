@@ -1,0 +1,525 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed module (file:/C:/Users/rajhr/.gradle/wrapper/dists/gradle-8.13-bin/5xuhj0ry160q40clulazy9h7d/gradle-8.13/lib/native-platform-0.22-milestone-28.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+
+> Task :app:compileDebugKotlin FAILED
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:99:10 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:100:9 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:100:22 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:100:23 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:100:38 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:100:39 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:103:9 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:103:25 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:103:26 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:103:35 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:103:43 Syntax error: Name expected.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:105:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:108:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:111:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:114:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:117:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:122:9 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:122:20 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:122:21 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:122:30 Syntax error: Expecting member declaration.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:122:38 Syntax error: Name expected.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:124:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:127:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:177:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:183:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:187:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:194:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:202:17 Unresolved reference 'navigationContext'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:211:23 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:218:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:219:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:222:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:223:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:226:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:227:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:238:14 Unresolved reference 'isActive'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:239:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:246:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:251:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:259:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:260:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:261:13 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:262:13 Unresolved reference 'waitingForContactDisambiguation'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:263:13 Unresolved reference 'pendingContactMatches'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:263:37 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:263:37 Not enough information to infer type argument for 'T'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:264:13 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:265:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:273:28 Unresolved reference 'stateDetector'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:274:13 Unresolved reference 'verificationSystem'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:276:53 Unresolved reference 'verificationSystem'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:276:53 Function 'component1()' is ambiguous for this expression: 
+fun <T> Array<out T>.component1(): T
+fun ByteArray.component1(): Byte
+fun ShortArray.component1(): Short
+fun IntArray.component1(): Int
+fun LongArray.component1(): Long
+fun FloatArray.component1(): Float
+fun DoubleArray.component1(): Double
+fun BooleanArray.component1(): Boolean
+fun CharArray.component1(): Char
+fun <T> List<T>.component1(): T
+fun <K, V> Map.Entry<K, V>.component1(): K
+fun UIntArray.component1(): UInt
+fun ULongArray.component1(): ULong
+fun UByteArray.component1(): UByte
+fun UShortArray.component1(): UShort.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:276:53 Function 'component2()' is ambiguous for this expression: 
+fun <T> Array<out T>.component2(): T
+fun ByteArray.component2(): Byte
+fun ShortArray.component2(): Short
+fun IntArray.component2(): Int
+fun LongArray.component2(): Long
+fun FloatArray.component2(): Float
+fun DoubleArray.component2(): Double
+fun BooleanArray.component2(): Boolean
+fun CharArray.component2(): Char
+fun <T> List<T>.component2(): T
+fun <K, V> Map.Entry<K, V>.component2(): V
+fun UIntArray.component2(): UInt
+fun ULongArray.component2(): ULong
+fun UByteArray.component2(): UByte
+fun UShortArray.component2(): UShort.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:280:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:281:23 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:286:18 Unresolved reference 'verificationSystem'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:287:33 Unresolved reference 'verificationSystem'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:289:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:291:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:293:23 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:298:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:299:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:329:13 Unresolved reference 'waitingForContactDisambiguation'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:336:13 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:343:13 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:350:31 Unresolved reference 'commandMemory'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:352:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:353:40 Argument type mismatch: actual type is 'kotlin.Any', but 'com.autoapk.automation.core.SmartCommandMatcher.CommandIntent' was expected.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:360:13 Unresolved reference 'commandMemory'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:364:27 Unresolved reference 'smartMatcher'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:366:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:366:65 Unresolved reference 'intent'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:366:94 Unresolved reference 'score'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:366:123 Unresolved reference 'extractedParam'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:367:52 Unresolved reference 'intent'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:367:93 Unresolved reference 'extractedParam'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:370:17 Unresolved reference 'commandMemory'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:370:61 Unresolved reference 'intent'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:380:28 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:382:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:382:93 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:383:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:383:52 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:386:70 Unresolved reference 'number'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:389:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:390:17 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:395:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:401:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:402:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:413:29 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:413:54 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:422:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:432:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:435:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:440:27 Unresolved reference 'smartMatcher'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:451:29 Unresolved reference 'intent'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:452:23 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:452:68 Unresolved reference 'intent'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:453:50 Unresolved reference 'intent'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:453:92 Unresolved reference 'extractedParam'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:455:23 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:455:60 Unresolved reference 'intent'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:459:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:472:25 Method 'iterator()' is ambiguous for this expression. Applicable candidates:
+fun <T> Enumeration<T>.iterator(): Iterator<T>
+fun <T> Iterator<T>.iterator(): Iterator<T>
+fun <K, V> Map<out K, V>.iterator(): Iterator<Map.Entry<K, V>>
+fun <K, V> MutableMap<K, V>.iterator(): MutableIterator<MutableMap.MutableEntry<K, V>>
+fun CharSequence.iterator(): CharIterator
+fun BufferedInputStream.iterator(): ByteIterator
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:472:25 Unresolved reference 'pendingContactMatches'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:489:9 Unresolved reference 'waitingForContactDisambiguation'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:492:13 Unresolved reference 'pendingContactMatches'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:492:37 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:492:37 Not enough information to infer type argument for 'T'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:493:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:494:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:500:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:501:17 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:504:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:508:13 Unresolved reference 'pendingContactMatches'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:508:37 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:508:37 Not enough information to infer type argument for 'T'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:509:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:527:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:528:17 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:529:17 Unresolved reference 'waitingForContactDisambiguation'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:530:17 Unresolved reference 'pendingContactMatches'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:530:41 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:530:41 Not enough information to infer type argument for 'T'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:531:17 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:532:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:538:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:542:58 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:543:58 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:544:63 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:545:69 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:547:61 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:550:64 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:551:62 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:552:63 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:553:64 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:579:21 Unresolved reference 'navigationContext'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:596:29 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:601:17 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:629:34 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:630:46 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:631:22 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:635:28 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:636:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:639:29 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:639:62 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:641:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:643:51 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:643:54 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:644:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:644:45 Unresolved reference 'size'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:658:65 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:697:70 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:709:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:713:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:720:31 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:721:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:725:28 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:726:44 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:726:70 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:758:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:770:28 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:776:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:787:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:788:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:790:31 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:792:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:801:9 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:802:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:807:9 Unresolved reference 'cameraController'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:815:13 Unresolved reference 'appRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:816:13 Unresolved reference 'appRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:819:24 Unresolved reference 'appRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:821:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:823:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:838:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:839:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:842:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:846:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:852:9 Unresolved reference 'callManager'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:857:9 Unresolved reference 'callManager'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:862:28 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:864:9 Unresolved reference 'callManager'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:872:26 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:879:42 Unresolved reference 'moveToFirst'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:880:38 Unresolved reference 'getString'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:881:35 Unresolved reference 'getString'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:882:24 Unresolved reference 'close'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:883:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:886:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:890:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:898:28 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:903:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:911:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:921:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:922:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:930:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:931:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:939:29 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:946:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:953:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:962:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:966:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:971:57 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:974:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:975:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:986:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:991:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:996:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1000:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1004:57 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1007:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1008:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1016:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1021:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1025:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1028:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1037:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1039:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1069:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1070:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1073:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1074:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1100:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1101:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1104:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1105:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1114:39 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1119:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1120:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1127:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1130:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1141:9 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1142:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1150:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1158:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1159:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1167:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1168:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1176:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1178:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1180:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1188:29 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1190:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1194:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1202:13 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1203:13 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1206:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1209:26 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1210:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1214:28 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1214:42 Unresolved reference 'score'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1215:56 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1215:70 Unresolved reference 'score'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1217:40 'operator' modifier is required on 'FirNamedFunctionSymbol kotlin/compareTo' in 'compareTo'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1219:29 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1220:23 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1220:52 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1220:74 Unresolved reference 'score'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1221:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1221:49 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1224:67 Unresolved reference 'number'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1227:21 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1228:21 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1231:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1237:13 Unresolved reference 'pendingContactMatches'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1238:13 Unresolved reference 'waitingForContactDisambiguation'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1239:60 Unresolved reference 'it'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1239:71 Unresolved reference 'it'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1240:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1241:63 Unresolved reference 'it'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1242:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1248:25 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1249:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1249:48 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1249:70 Unresolved reference 'score'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1249:91 Unresolved reference 'matchType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1250:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1250:45 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1253:63 Unresolved reference 'number'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1256:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1257:17 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1260:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1266:21 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1268:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1268:47 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1268:69 Unresolved reference 'score'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1268:90 Unresolved reference 'matchType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1269:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1269:45 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1272:63 Unresolved reference 'number'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1275:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1276:17 Unresolved reference 'isOnActiveCall'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1279:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1284:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1301:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1309:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1332:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1345:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1350:13 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1350:42 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1351:21 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1360:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1361:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1361:52 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1364:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1376:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1380:13 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1380:42 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1381:21 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1384:32 Unresolved reference 'number'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1393:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1394:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1394:64 Unresolved reference 'name'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1397:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1445:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1450:13 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1450:42 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1451:21 Unresolved reference 'contactRegistry'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1462:40 Unresolved reference 'number'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1468:21 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1479:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1485:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1490:20 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1492:29 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1492:38 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1492:42 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1492:66 Argument type mismatch: actual type is 'kotlin.Any', but 'android.view.accessibility.AccessibilityNodeInfo' was expected.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1496:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1503:35 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1505:35 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1507:35 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1508:35 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1511:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1513:21 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1518:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1541:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1545:26 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1547:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1549:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1559:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1560:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1574:26 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1576:24 Unresolved reference 'flags'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1577:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1578:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1590:9 Unresolved reference 'cameraController'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1595:25 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1600:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1604:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1610:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1621:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1622:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1634:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1640:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1648:13 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1655:35 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1668:17 Unresolved reference 'context'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1671:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1674:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1678:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1688:9 Unresolved reference 'lockType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1689:9 Unresolved reference 'phonePin'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1690:9 Unresolved reference 'prefs'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1692:37 Unresolved reference 'phonePin'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1693:14 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1694:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1694:40 Unresolved reference 'phonePin'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1701:9 Unresolved reference 'lockType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1702:9 Unresolved reference 'phonePattern'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1703:9 Unresolved reference 'prefs'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1705:41 Unresolved reference 'phonePattern'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1706:14 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1707:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1707:44 Unresolved reference 'phonePattern'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1714:17 Unresolved reference 'lockType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1714:38 Unresolved reference 'phonePin'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1715:17 Unresolved reference 'lockType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1715:42 Unresolved reference 'phonePattern'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1719:9 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1720:9 Unresolved reference 'prefs'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1720:53 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1720:65 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1721:15 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1721:40 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1725:16 Unresolved reference 'prefs'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1744:13 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1747:42 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1748:23 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1748:50 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1749:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1750:17 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1751:17 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1756:13 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1757:13 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1758:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1771:13 Unresolved reference 'lockType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1771:34 Unresolved reference 'phonePin'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1772:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1773:20 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1773:43 Unresolved reference 'phonePin'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1774:20 Unresolved reference 'lockType'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1774:45 Unresolved reference 'phonePattern'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1775:19 Unresolved reference 'TAG'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1776:20 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1776:47 Unresolved reference 'phonePattern'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1780:9 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1781:16 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1792:27 Unresolved reference 'unlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1794:13 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1796:13 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1797:13 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1798:13 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1804:13 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1804:36 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1806:17 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1807:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1807:46 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1807:76 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1811:17 Unresolved reference 'waitingForUnlockCode'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1812:17 Unresolved reference 'unlockAttemptsRemaining'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1813:17 Unresolved reference 'service'.
+e: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1818:1 Syntax error: Expecting a top level declaration.
+
+[Incubating] Problems report is available at: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 3s
+28 actionable tasks: 1 executed, 27 up-to-date

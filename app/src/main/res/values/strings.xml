@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Neo</string>
+    <string name="accessibility_service_description">Neo Automation Service controls your phone through voice commands and Bluetooth signals. It can tap, scroll, swipe, and navigate on your behalf.</string>
+
+    <!-- Status Messages -->
+    <string name="status_service_active">Service Active</string>
+    <string name="status_service_inactive">Service Inactive</string>
+    <string name="status_voice_listening">Listening for Voice…</string>
+    <string name="status_voice_off">Voice Off</string>
+    <string name="status_bt_connected">Bluetooth Connected</string>
+    <string name="status_bt_disconnected">Bluetooth Disconnected</string>
+
+    <!-- Permission Labels -->
+    <string name="permission_accessibility">Accessibility Service</string>
+    <string name="permission_microphone">Microphone</string>
+    <string name="permission_bluetooth">Bluetooth</string>
+    <string name="permission_phone">Phone Calls</string>
+    <string name="permission_sms">SMS Messages</string>
+
+    <!-- TTS Responses -->
+    <string name="tts_service_started">Neo is now active and ready for commands.</string>
+    <string name="tts_command_not_recognized">Sorry, I did not understand. Please try again.</string>
+    <string name="tts_battery_low">Warning. Battery is low. Please charge your phone.</string>
+
+    <!-- Notification -->
+    <string name="notification_channel_name">Neo Service</string>
+    <string name="notification_title">Neo Running</string>
+    <string name="notification_text">Listening for voice and Bluetooth commands</string>
+</resources>

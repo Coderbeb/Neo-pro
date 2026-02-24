@@ -1,0 +1,89 @@
+﻿.\gradlew : WARNING: A restricted method in java.lang.System has been called
+At line:1 char:57
++ ... ocuments\Desktop\autoapk"; .\gradlew clean assembleDebug 2>&1 | Out-F ...
++                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WARNING: A rest...has been called:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: java.lang.System::load has been called by net.rubygrapefruit.platform.internal.NativeLibraryLoader in an unnamed 
+module (file:/C:/Users/rajhr/.gradle/wrapper/dists/gradle-8.13-bin/5xuhj0ry160q40clulazy9h7d/gradle-8.13/lib/native-platform-0.
+22-milestone-28.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+> Task :app:clean
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugResValues
+> Task :app:dataBindingMergeDependencyArtifactsDebug
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:mapDebugSourceSetPaths
+> Task :app:parseDebugLocalResources
+> Task :app:checkDebugAarMetadata
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:mergeDebugResources
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:checkDebugDuplicateClasses
+> Task :app:dataBindingGenBaseClassesDebug
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeLibDexDebug
+> Task :app:processDebugResources
+> Task :app:mergeExtDexDebug
+
+> Task :app:compileDebugKotlin
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:311:41 'static field FULL_WAKE_LOCK: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:312:41 'static field ACQUIRE_CAUSES_WAKEUP: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:377:41 'static field FULL_WAKE_LOCK: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:378:41 'static field ACQUIRE_CAUSES_WAKEUP: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CallManager.kt:56:32 'fun acceptRingingCall(): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CallManager.kt:80:46 'fun endCall(): Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CallManager.kt:100:26 'var isSpeakerphoneOn: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CameraController.kt:217:28 'fun createCaptureSession(p0: (Mutable)List<Surface!>, p1: CameraCaptureSession.StateCallback, p2: Handler?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CameraController.kt:350:36 'fun createCaptureSession(p0: (Mutable)List<Surface!>, p1: CameraCaptureSession.StateCallback, p2: Handler?): Unit' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:834:13 Duplicate branch condition in 'when'.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:972:38 'var isSpeakerphoneOn: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1757:63 'static fun getDefault(): SmsManager!' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1785:71 'static fun getDefault(): SmsManager!' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/PhoneStateDetector.kt:9:8 'class PhoneStateListener : Any' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/PhoneStateDetector.kt:61:37 'class PhoneStateListener : Any' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/ui/MainActivity.kt:275:46 'fun createConfirmDeviceCredentialIntent(p0: CharSequence!, p1: CharSequence!): Intent!' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/ui/MainActivity.kt:280:21 'fun startActivityForResult(p0: Intent, p1: Int): Unit' is deprecated. Deprecated in Java.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:dexBuilderDebug
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugJavaResource
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+
+[Incubating] Problems report is available at: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 41s
+37 actionable tasks: 37 executed
