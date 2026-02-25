@@ -58,6 +58,7 @@ class GoogleVoiceCommandManager(private val context: Context) {
     private var lastCommand = ""
     private var lastCommandTime = 0L
     private var ttsCheckCallback: (() -> Boolean)? = null
+    private val speakerDetection = com.autoapk.automation.core.SpeakerDetection(context)
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val networkHandler = Handler(Looper.getMainLooper())
@@ -390,6 +391,10 @@ class GoogleVoiceCommandManager(private val context: Context) {
             if (!shouldKeepListening) return@postDelayed
             if (ttsCheckCallback?.invoke() == true) {
                 restartListening(500); return@postDelayed
+            }
+            // Speaker rejection — skip listen if media is playing on speaker
+            if (!speakerDetection.shouldListen()) {
+                restartListening(1000); return@postDelayed
             }
             doStartListening()
         }, delayMs)

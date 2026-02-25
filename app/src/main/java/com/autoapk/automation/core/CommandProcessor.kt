@@ -58,8 +58,8 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     // Audio Feedback
     private val audioFeedback = AudioFeedbackManager(context)
 
-    // Activation state — when false, all commands are silently ignored
-    var isActive: Boolean = true
+    // Neo State Manager — controls wake/sleep/in-call modes
+    var neoState: NeoStateManager? = null
 
     // === LAST ACTION MEMORY (for "again" / "repeat" command) ===
     private var lastAction: LastAction? = null
@@ -175,6 +175,13 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
      *   - Maintains context between steps using NavigationContextTracker
      */
     fun process(rawCommand: String): Boolean {
+        // Try app-specific routing first (WhatsApp, YouTube, Instagram)
+        val router = AutomationAccessibilityService.instance?.commandRouter
+        if (router != null && router.route(rawCommand)) {
+            Log.i("Neo_CMD", "Routed to app-specific handler: '$rawCommand'")
+            return true
+        }
+
         // Check if this is a chained command (contains commas)
         if (rawCommand.contains(",")) {
             return processChainedCommand(rawCommand)
@@ -255,14 +262,25 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
      * This is the original process() logic extracted into a separate method.
      */
     private fun processSingleCommand(rawCommand: String): Boolean {
-        // If automation is deactivated, silently ignore all commands
-        if (!isActive) {
-            Log.i(TAG, "Automation inactive — ignoring command: '${rawCommand.trim()}'")
-            return false
+        // === NEO WAKE/SLEEP FILTER ===
+        // If sleeping, only wake word "Neo" (or hardware combo) can wake it
+        val state = neoState
+        val commandToProcess: String
+        if (state != null) {
+            val filtered = state.processWakeFilter(rawCommand)
+            if (filtered == null) {
+                // Sleeping and no wake word found — silently ignore
+                return false
+            }
+            // Wake word was found and stripped, or already ACTIVE
+            commandToProcess = if (filtered.isBlank()) rawCommand else filtered
+        } else {
+            // No state manager — process everything (fallback)
+            commandToProcess = rawCommand
         }
 
         // Translate Hindi/Hinglish to English, then normalize
-        val translated = HindiCommandMapper.translate(rawCommand)
+        val translated = HindiCommandMapper.translate(commandToProcess)
         val command = translated.trim().lowercase()
         Log.i(TAG, "Processing command: '$command' (original: '${rawCommand.trim()}')")
 
@@ -326,8 +344,11 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             return handleUnlockCodeAttempt(command)
         }
 
-        // === IN-CALL WAKE WORD CHECK ===
-        if (isOnActiveCall) {
+        // === IN-CALL MODE CHECK ===
+        // In IN_CALL mode, only call-related commands are allowed
+        // The user already woke Neo via hardware combo (call is muted)
+        if (neoState?.currentMode == NeoStateManager.NeoMode.IN_CALL ||
+            (isOnActiveCall && neoState?.inCallModeEnabled == true)) {
             return handleInCallCommand(command, rawCommand)
         }
 
@@ -377,6 +398,8 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 lastProcessedCommand = command
                 lastProcessedTime = timestamp
                 audioFeedback.playSuccess()
+                // Notify Neo state manager — resets 60s timer or triggers instant sleep in IN_CALL
+                neoState?.onCommandProcessed()
                 return true
             }
         }
@@ -412,40 +435,16 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     }
 
     /**
-     * Handle commands during active call.
-     * Requires user's security code (or default "jarvis") as prefix.
-     * Only call-related commands (end call, speaker, mute) are allowed.
+     * Handle commands during active call with in-call mode ON.
+     * User woke Neo via hardware combo (call mic is already muted).
+     * Only call-related commands are allowed.
+     * After execution, Neo sleeps instantly and call mic is unmuted.
      */
     private fun handleInCallCommand(command: String, rawCommand: String): Boolean {
-        // Fixed wake word "jarvis" during active calls — security code no longer needed here
-        val wakeWord = "jarvis"
+        Log.i(TAG, "In-call command: '$command'")
 
-        // Also try with spaces removed (voice recognition splits numbers: "delta 123" → "delta 1 2 3")
-        val commandNoSpaces = command.replace(" ", "")
-        val wakeWordNoSpaces = wakeWord.replace(" ", "")
-
-        val hasWakeWord = command.startsWith(wakeWord) || commandNoSpaces.startsWith(wakeWordNoSpaces)
-
-        if (!hasWakeWord) {
-            Log.d(TAG, "In-call: ignoring '$command' (expected wake word '$wakeWord')")
-            return false  // Silently ignore — could be phone conversation
-        }
-
-        // Strip wake word and process remaining command
-        val stripped = if (command.startsWith(wakeWord)) {
-            command.removePrefix(wakeWord).trim()
-        } else {
-            commandNoSpaces.removePrefix(wakeWordNoSpaces).trim()
-        }
-        Log.i(TAG, "In-call wake word detected! Command after strip: '$stripped'")
-
-        if (stripped.isBlank()) {
-            service?.speak("Yes? What should I do?")
-            return true
-        }
-
-        // Only allow call-related commands during active call
-        val matchResult = smartMatcher.match(stripped, "") // No context needed in call
+        // Match against all intents but filter to call-related ones
+        val matchResult = smartMatcher.match(command, "")
         if (matchResult != null) {
             val allowedIntents = setOf(
                 SmartCommandMatcher.CommandIntent.END_CALL,
@@ -458,13 +457,20 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             )
             if (matchResult.intent in allowedIntents) {
                 Log.i(TAG, "In-call command matched: ${matchResult.intent}")
-                return executeIntent(matchResult.intent, stripped, rawCommand, matchResult.extractedParam)
+                val result = executeIntent(matchResult.intent, command, rawCommand, matchResult.extractedParam)
+                // After executing in-call command: unmute mic and sleep instantly
+                service?.muteCallMic(false)
+                neoState?.onCommandProcessed() // triggers instant sleep in IN_CALL mode
+                return result
             } else {
                 Log.w(TAG, "In-call: matched ${matchResult.intent} but not allowed during call")
             }
         }
 
         service?.speak("During a call, I can only: end call, toggle speaker, mute, or adjust volume.")
+        // Unmute mic after responding
+        service?.muteCallMic(false)
+        neoState?.onCommandProcessed()
         return true
     }
 

@@ -73,6 +73,12 @@ class PhoneStateDetector(private val context: Context) {
     private var isCallActive = false
     private var callEndTransitionPending = false
 
+    // Neo State Manager — for in-call mode transitions
+    var neoState: NeoStateManager? = null
+
+    // Contact Registry — for caller name lookup
+    var contactRegistry: ContactRegistry? = null
+
     /**
      * Set the state change listener
      */
@@ -166,7 +172,7 @@ class PhoneStateDetector(private val context: Context) {
     private fun registerPhoneStateListener() {
         phoneStateListener = object : PhoneStateListener() {
             override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-                handleCallStateChange(state)
+                handleCallStateChange(state, phoneNumber)
             }
         }
         
@@ -197,7 +203,7 @@ class PhoneStateDetector(private val context: Context) {
      * Handle call state change
      * Requirement: 3.4, 3.15, 7.12 - IN_CALL detection and 1-second transition
      */
-    private fun handleCallStateChange(state: Int) {
+    private fun handleCallStateChange(state: Int, incomingNumber: String? = null) {
         when (state) {
             TelephonyManager.CALL_STATE_IDLE -> {
                 // Call ended
@@ -211,14 +217,16 @@ class PhoneStateDetector(private val context: Context) {
                         if (callEndTransitionPending) {
                             callEndTransitionPending = false
                             updateState()
+                            // Return Neo to ACTIVE mode after call ends
+                            neoState?.exitInCallMode()
                         }
                     }, CALL_END_TRANSITION_DELAY_MS)
                 }
             }
             TelephonyManager.CALL_STATE_RINGING -> {
-                // Incoming call
+                // Incoming call — announce caller name
                 Log.i(TAG, "Incoming call detected")
-                // Don't set IN_CALL yet, wait for answer
+                announceIncomingCall(incomingNumber)
             }
             TelephonyManager.CALL_STATE_OFFHOOK -> {
                 // Call active (answered or outgoing)
@@ -228,9 +236,38 @@ class PhoneStateDetector(private val context: Context) {
                     callEndTransitionPending = false
                     handler.removeCallbacksAndMessages(null)
                     updateState()
+                    // Enter IN_CALL mode if toggle is enabled
+                    if (neoState?.inCallModeEnabled == true) {
+                        neoState?.enterInCallMode()
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Announce incoming caller name via TTS.
+     * Looks up the number in ContactRegistry for a friendly name.
+     */
+    private fun announceIncomingCall(number: String?) {
+        val service = AutomationAccessibilityService.instance ?: return
+        
+        val callerName = if (!number.isNullOrBlank()) {
+            val contact = contactRegistry?.findContactByNumber(number)
+            contact?.name ?: number
+        } else {
+            "Unknown"
+        }
+
+        val lang = neoState?.lastLanguage ?: "en"
+        val announcement = if (lang == "hi") {
+            "$callerName aapko call kar raha hai"
+        } else {
+            "$callerName is calling you"
+        }
+
+        Log.i(TAG, "Announcing incoming call: $announcement")
+        service.speak(announcement)
     }
 
     /**

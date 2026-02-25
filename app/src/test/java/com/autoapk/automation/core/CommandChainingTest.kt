@@ -31,7 +31,6 @@ class CommandChainingTest {
     @Before
     fun setup() {
         commandProcessor = CommandProcessor(mockContext, mockAppRegistry)
-        commandProcessor.isActive = true
     }
     
     @Test

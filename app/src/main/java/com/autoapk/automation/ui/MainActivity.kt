@@ -22,6 +22,7 @@ import com.autoapk.automation.databinding.ActivityMainBinding
 import com.autoapk.automation.input.BluetoothCommandReceiver
 import com.autoapk.automation.input.GoogleVoiceCommandManager
 import com.autoapk.automation.core.AppRegistry
+import com.autoapk.automation.core.NeoStateManager
 
 /**
  * Main Activity - Setup & Control Dashboard
@@ -50,6 +51,9 @@ class MainActivity : AppCompatActivity() {
     private var isVoiceActive = false
     private var isBluetoothActive = false
     private val commandLog = mutableListOf<String>()
+
+    // Neo State Manager
+    private lateinit var neoState: NeoStateManager
 
     // ==================== LIFECYCLE ====================
 
@@ -104,11 +108,73 @@ class MainActivity : AppCompatActivity() {
         setupButtons()
         setupManualCommandInput()
         setupPinUI()
+        setupNeoStateManager()
 
         // Google Speech Recognition is ready immediately (no model loading needed)
         binding.btnStartVoice.isEnabled = true
         binding.btnStartVoice.text = "🎤  Start Voice Control"
         addToLog("✅ Voice recognition ready (Google Speech)")
+    }
+
+    private fun setupNeoStateManager() {
+        neoState = NeoStateManager()
+
+        // Wire NeoStateManager to CommandProcessor
+        commandProcessor.neoState = neoState
+
+        // Wire NeoStateManager to AccessibilityService
+        AutomationAccessibilityService.instance?.neoState = neoState
+
+        // Wire NeoStateManager to PhoneStateDetector (via CommandProcessor's stateDetector)
+        // PhoneStateDetector is private in CommandProcessor, so we set it on the service instead
+
+        // Register state listener for UI updates
+        neoState.setListener(object : NeoStateManager.StateListener {
+            override fun onModeChanged(oldMode: NeoStateManager.NeoMode, newMode: NeoStateManager.NeoMode) {
+                runOnUiThread {
+                    updateNeoModeUI(newMode)
+                    when (newMode) {
+                        NeoStateManager.NeoMode.ACTIVE -> addToLog("🟢 Neo ACTIVE")
+                        NeoStateManager.NeoMode.SLEEPING -> addToLog("😴 Neo SLEEPING")
+                        NeoStateManager.NeoMode.IN_CALL -> addToLog("📞 Neo IN-CALL mode")
+                    }
+                }
+            }
+
+            override fun onSleepAnnouncement(message: String) {
+                AutomationAccessibilityService.instance?.speak(message)
+            }
+
+            override fun onWakeAnnouncement(message: String) {
+                AutomationAccessibilityService.instance?.speak(message)
+            }
+        })
+
+        // In-Call toggle
+        binding.switchInCallMode.setOnCheckedChangeListener { _, isChecked ->
+            neoState.inCallModeEnabled = isChecked
+            if (isChecked) {
+                addToLog("📞 In-Call voice mode ENABLED")
+            } else {
+                addToLog("📞 In-Call voice mode DISABLED")
+                // If currently in IN_CALL mode, exit it
+                if (neoState.currentMode == NeoStateManager.NeoMode.IN_CALL) {
+                    neoState.exitInCallMode()
+                }
+            }
+        }
+
+        updateNeoModeUI(neoState.currentMode)
+    }
+
+    private fun updateNeoModeUI(mode: NeoStateManager.NeoMode) {
+        val (text, colorRes) = when (mode) {
+            NeoStateManager.NeoMode.ACTIVE -> "🟢 ACTIVE" to R.color.status_active
+            NeoStateManager.NeoMode.SLEEPING -> "😴 SLEEPING (say \"Neo\" or press Vol↑+Vol↓)" to R.color.text_secondary
+            NeoStateManager.NeoMode.IN_CALL -> "📞 IN-CALL (press Vol↑+Vol↓ to command)" to R.color.primary
+        }
+        binding.tvNeoModeStatus.text = text
+        binding.indicatorNeoMode.setBackgroundColor(getColor(colorRes))
     }
 
     override fun onResume() {
@@ -122,21 +188,8 @@ class MainActivity : AppCompatActivity() {
         if (commandProcessor.contactRegistry.needsScan()) {
             try { commandProcessor.contactRegistry.scanContacts() } catch (e: Exception) { }
         }
-        // Register activation listener for volume button toggle
-        AutomationAccessibilityService.instance?.activationListener =
-            object : AutomationAccessibilityService.ActivationListener {
-                override fun onActivationChanged(isActive: Boolean) {
-                    commandProcessor.isActive = isActive
-                    runOnUiThread {
-                        if (isActive) {
-                            addToLog("🟢 Automation ACTIVATED (volume button shortcut)")
-                        } else {
-                            addToLog("🔴 Automation DEACTIVATED (volume button shortcut)")
-                        }
-                        updateStatusIndicators()
-                    }
-                }
-            }
+        // Re-wire NeoStateManager to service (may have reconnected)
+        AutomationAccessibilityService.instance?.neoState = neoState
 
         // Register TTS listener — pause mic while TTS speaks to prevent feedback loop
         AutomationAccessibilityService.instance?.ttsListener =
@@ -150,11 +203,6 @@ class MainActivity : AppCompatActivity() {
                     voiceManager.resumeListening()
                 }
             }
-
-        // Sync current state
-        AutomationAccessibilityService.instance?.let {
-            commandProcessor.isActive = it.isAutomationActive
-        }
     }
 
     override fun onDestroy() {
@@ -163,8 +211,9 @@ class MainActivity : AppCompatActivity() {
         voiceManager.destroy()
         bluetoothReceiver.stop()
         stopForegroundService()
+        neoState.destroy()
         Log.d(TAG, "MainActivity destroyed")
-        AutomationAccessibilityService.instance?.activationListener = null
+        AutomationAccessibilityService.instance?.neoState = null
         AutomationAccessibilityService.instance?.ttsListener = null
     }
 
@@ -225,8 +274,6 @@ class MainActivity : AppCompatActivity() {
             val text = binding.etManualCommand.text?.toString()?.trim() ?: ""
             if (text.isBlank()) {
                 Toast.makeText(this, "Please type a command first", Toast.LENGTH_SHORT).show()
-            } else if (!commandProcessor.isActive) {
-                Toast.makeText(this, "Start Voice Control first to activate the processor", Toast.LENGTH_SHORT).show()
             } else {
                 addToLog("⌨️ \"$text\"")
                 val success = commandProcessor.process(text)
@@ -453,12 +500,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
         isVoiceActive = true
-        AutomationAccessibilityService.instance?.let {
-            if (!it.isAutomationActive) {
-                it.toggleActivationFromUI()
-            }
-            commandProcessor.isActive = true
-        }
+        neoState.activate()
+        AutomationAccessibilityService.instance?.neoState = neoState
         voiceManager.startListening()
         startForegroundService()
         val mode = if (voiceManager.isOnline()) "🌐 Online" else "📤 Offline"
@@ -474,14 +517,8 @@ class MainActivity : AppCompatActivity() {
     }
     private fun stopVoiceControl() {
         isVoiceActive = false
+        neoState.deactivate()
         voiceManager.stopListening()
-        // Deactivate automation when voice stops
-        AutomationAccessibilityService.instance?.let {
-            if (it.isAutomationActive) {
-                it.toggleActivationFromUI()
-            }
-            commandProcessor.isActive = false
-        }
     }
 
     // ==================== BLUETOOTH CONTROL ====================

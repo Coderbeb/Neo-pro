@@ -301,6 +301,28 @@ class ContactRegistry(private val context: Context) {
 
     fun getContactCount(): Int = displayNames.size
 
+    /**
+     * Find a contact by phone number (reverse lookup for caller ID).
+     * Matches by checking if the stored number ends with the incoming number
+     * (handles country code differences).
+     */
+    fun findContactByNumber(number: String): ContactMatch? {
+        val clean = number.replace(Regex("[^0-9+]"), "")
+        if (clean.length < 4) return null
+
+        for ((name, storedNumber) in displayNames) {
+            // Match by suffix (last 10 digits) to handle country code differences
+            val storedClean = storedNumber.replace(Regex("[^0-9]"), "")
+            val incomingClean = clean.replace(Regex("[^0-9]"), "")
+            val matchLen = minOf(10, minOf(storedClean.length, incomingClean.length))
+            if (matchLen >= 4 &&
+                storedClean.takeLast(matchLen) == incomingClean.takeLast(matchLen)) {
+                return ContactMatch(name, storedNumber, "number-match", 100)
+            }
+        }
+        return null
+    }
+
     fun needsScan(): Boolean {
         if (displayNames.isEmpty()) return true
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

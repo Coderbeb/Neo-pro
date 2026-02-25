@@ -23,7 +23,7 @@ import java.util.Locale
  * - Perform global actions (Home, Back, Recents, Lock)
  * - Read on-screen content (find buttons by text)
  * - Provide voice feedback via TTS
- * - Detect volume button combo to toggle automation on/off
+ * - Detect volume button combo to wake Neo from sleep mode
  */
 class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnInitListener {
 
@@ -42,28 +42,24 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
     private var screenHeight: Int = 2400
     private var ttsReady: Boolean = false
 
-    // === ACTIVATION STATE ===
-    var isAutomationActive: Boolean = false
-        private set
-
     // Track last spoken text for "repeat" command
     var lastSpokenText: String = ""
         private set
 
-    // === VOLUME BUTTON COMBO DETECTION ===
-    // Gesture: Press both Vol Up + Vol Down within 600ms, do it twice within 1.5s
+    // === NEO STATE MANAGER ===
+    var neoState: NeoStateManager? = null
+
+    // === APP-SPECIFIC AUTOMATION ===
+    var commandRouter: CommandRouter? = null
+        private set
+
+    // === WAKE TRIGGER (Volume + BT + Proximity) ===
+    private var wakeTrigger: WakeTrigger? = null
+
+    // === VOLUME BUTTON COMBO FOR HARDWARE WAKE ===
     private var lastVolumeUpTime: Long = 0
     private var lastVolumeDownTime: Long = 0
-    private var comboCount: Int = 0
-    private var lastComboTime: Long = 0
-    private val COMBO_WINDOW_MS = 600L      // Both buttons must be within this window
-    private val DOUBLE_COMBO_WINDOW_MS = 1500L  // Two combos must be within this window
-
-    // Listener for activation state changes (used by MainActivity)
-    interface ActivationListener {
-        fun onActivationChanged(isActive: Boolean)
-    }
-    var activationListener: ActivationListener? = null
+    private val COMBO_WINDOW_MS = 400L
 
     // ==================== LIFECYCLE ====================
 
@@ -72,11 +68,23 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         instance = this
         tts = TextToSpeech(this, this)
         updateScreenDimensions()
-        Log.i(TAG, "Neo Accessibility Service CONNECTED")
+
+        // Initialize CommandRouter for app-specific automation
+        commandRouter = CommandRouter(this) { text -> speak(text) }
+
+        // Initialize WakeTrigger (BT triple-press, proximity sensor)
+        wakeTrigger = WakeTrigger(this, this) { triggerWake() }
+        wakeTrigger?.register()
+
+        Log.i(TAG, "Neo Accessibility Service CONNECTED (with app automation)")
     }
 
     override fun onDestroy() {
         instance = null
+        commandRouter?.destroy()
+        commandRouter = null
+        wakeTrigger?.unregister()
+        wakeTrigger = null
         if (::tts.isInitialized) {
             tts.stop()
             tts.shutdown()
@@ -123,7 +131,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         }
     }
 
-    // ==================== VOLUME BUTTON COMBO DETECTION ====================
+    // ==================== VOLUME BUTTON COMBO — HARDWARE WAKE ====================
 
     override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null || event.action != KeyEvent.ACTION_DOWN) return super.onKeyEvent(event)
@@ -132,13 +140,25 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
 
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> {
+                // Check if Vol Down was pressed recently → combo!
+                if (now - lastVolumeDownTime < COMBO_WINDOW_MS) {
+                    lastVolumeUpTime = 0
+                    lastVolumeDownTime = 0
+                    triggerWake()
+                    return true // consume the event (no volume change)
+                }
                 lastVolumeUpTime = now
-                checkForCombo(now)
-                return super.onKeyEvent(event) // Don't consume — let volume still work
+                return super.onKeyEvent(event) // let volume change happen
             }
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                // Check if Vol Up was pressed recently → combo!
+                if (now - lastVolumeUpTime < COMBO_WINDOW_MS) {
+                    lastVolumeUpTime = 0
+                    lastVolumeDownTime = 0
+                    triggerWake()
+                    return true // consume the event
+                }
                 lastVolumeDownTime = now
-                checkForCombo(now)
                 return super.onKeyEvent(event)
             }
         }
@@ -146,51 +166,43 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         return super.onKeyEvent(event)
     }
 
-    private fun checkForCombo(now: Long) {
-        // Check if both volume buttons were pressed simultaneously (within 500ms)
-        if (lastVolumeUpTime > 0 && lastVolumeDownTime > 0 &&
-            Math.abs(lastVolumeUpTime - lastVolumeDownTime) < COMBO_WINDOW_MS) {
+    private fun triggerWake() {
+        Log.i(TAG, "Volume combo detected — waking Neo")
 
-            // Both buttons pressed simultaneously — TOGGLE!
-            toggleActivation()
-            
-            // Reset state immediately
-            comboCount = 0
-            lastComboTime = 0
-            lastVolumeUpTime = 0
-            lastVolumeDownTime = 0
-        } else {
-            // Schedule cleanup of stale combo state
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                if (System.currentTimeMillis() - lastVolumeUpTime > DOUBLE_COMBO_WINDOW_MS) {
-                    lastVolumeUpTime = 0
+        neoState?.let { state ->
+            when (state.currentMode) {
+                NeoStateManager.NeoMode.SLEEPING -> {
+                    state.wake()
                 }
-                if (System.currentTimeMillis() - lastVolumeDownTime > DOUBLE_COMBO_WINDOW_MS) {
-                    lastVolumeDownTime = 0
+                NeoStateManager.NeoMode.IN_CALL -> {
+                    muteCallMic(true)
+                    state.wake()
                 }
-            }, DOUBLE_COMBO_WINDOW_MS)
+                NeoStateManager.NeoMode.ACTIVE -> {
+                    Log.d(TAG, "Already active — combo ignored")
+                }
+            }
         }
     }
 
-    private fun toggleActivation() {
-        isAutomationActive = !isAutomationActive
-        Log.i(TAG, "Automation toggled: ${if (isAutomationActive) "ACTIVE" else "INACTIVE"}")
+    // ==================== CALL MIC MUTE ====================
 
-        if (isAutomationActive) {
-            // Speak ONLY on activation
-            speakForced("Automation activated")
+    private var wasMicMuted = false
+
+    fun muteCallMic(mute: Boolean) {
+        try {
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            if (mute) {
+                wasMicMuted = audioManager.isMicrophoneMute
+                audioManager.isMicrophoneMute = true
+                Log.i(TAG, "Call mic MUTED")
+            } else {
+                audioManager.isMicrophoneMute = wasMicMuted
+                Log.i(TAG, "Call mic UNMUTED")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Mic mute error: ${e.message}")
         }
-        // On deactivation: stay completely silent — no TTS, no feedback
-
-        // Notify listener (MainActivity) about state change
-        activationListener?.onActivationChanged(isAutomationActive)
-    }
-
-    /**
-     * Programmatic activation toggle — called from UI buttons (voice start/stop).
-     */
-    fun toggleActivationFromUI() {
-        toggleActivation()
     }
 
     // ==================== VOICE FEEDBACK ====================
@@ -206,11 +218,11 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
     var ttsListener: TtsListener? = null
 
     /**
-     * Speak text only if automation is active.
+     * Speak text via TTS.
      * Notifies listener when TTS starts/finishes so mic can be paused.
      */
     fun speak(text: String) {
-        if (ttsReady && isAutomationActive) {
+        if (ttsReady) {
             lastSpokenText = text
             isSpeaking = true
             ttsListener?.onTtsStarted()

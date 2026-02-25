@@ -426,6 +426,43 @@
                     app:cornerRadius="12dp"
                     app:backgroundTint="@color/status_inactive" />
 
+                <!-- Neo Mode Status -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp">
+
+                    <View
+                        android:id="@+id/indicatorNeoMode"
+                        android:layout_width="12dp"
+                        android:layout_height="12dp"
+                        android:background="@color/status_active" />
+
+                    <TextView
+                        android:id="@+id/tvNeoModeStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🟢 ACTIVE"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp"
+                        android:layout_marginStart="12dp" />
+                </LinearLayout>
+
+                <!-- In-Call Voice Mode Toggle -->
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchInCallMode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📞  In-Call Voice Mode"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:checked="false"
+                    android:layout_marginTop="4dp" />
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
