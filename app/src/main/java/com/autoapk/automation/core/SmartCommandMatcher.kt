@@ -16,8 +16,8 @@ object SmartCommandMatcher {
 
     private const val TAG = "Neo_Matcher"
 
-    /** Minimum score to accept a match (prevents false positives) */
-    private const val MIN_SCORE = 2.5f
+    /** Minimum score to accept a match (lowered from 2.5 for better recall) */
+    private const val MIN_SCORE = 1.5f
 
     // ==================== RESULT ====================
 
@@ -32,19 +32,30 @@ object SmartCommandMatcher {
     enum class CommandIntent {
         // Navigation
         GO_HOME, GO_BACK, OPEN_RECENTS, OPEN_NOTIFICATIONS,
+        SWIPE_LEFT, SWIPE_RIGHT, OPEN_QUICK_SETTINGS,
+
+        // Lock / Unlock
         UNLOCK_PHONE, LOCK_PHONE,
 
         // Stop everything
         STOP_ALL,
 
-        // Scrolling & Swiping
-        SCROLL_DOWN, SCROLL_UP, SWIPE_LEFT, SWIPE_RIGHT,
+        // Scrolling
+        SCROLL_DOWN, SCROLL_UP,
 
         // Volume
         VOLUME_UP, VOLUME_DOWN, MUTE, UNMUTE,
 
-        // Connectivity
-        WIFI_ON, WIFI_OFF, BLUETOOTH_ON, BLUETOOTH_OFF,
+        // Connectivity / Quick Settings toggles
+        WIFI_ON, WIFI_OFF,
+        BLUETOOTH_ON, BLUETOOTH_OFF,
+        MOBILE_DATA_ON, MOBILE_DATA_OFF,
+        DND_ON, DND_OFF,
+        HOTSPOT_ON, HOTSPOT_OFF,
+        AIRPLANE_MODE_ON, AIRPLANE_MODE_OFF,
+        AUTO_ROTATE_ON, AUTO_ROTATE_OFF,
+        DARK_MODE_ON, DARK_MODE_OFF,
+        LOCATION_ON, LOCATION_OFF,
 
         // Flashlight
         FLASHLIGHT_ON, FLASHLIGHT_OFF,
@@ -72,11 +83,8 @@ object SmartCommandMatcher {
         // Battery
         READ_BATTERY,
 
-        // Rotation
+        // Rotation (legacy alias)
         ROTATION_ON, ROTATION_OFF,
-
-        // Quick Settings
-        QUICK_SETTINGS,
 
         // Brightness
         BRIGHTNESS_UP, BRIGHTNESS_DOWN, BRIGHTNESS_MAX, BRIGHTNESS_MIN, BRIGHTNESS_HALF,
@@ -84,17 +92,6 @@ object SmartCommandMatcher {
         // Alarm & Timer
         SET_ALARM, SET_TIMER,
 
-        // DND
-        DND_ON, DND_OFF,
-
-        // Hotspot
-        TOGGLE_HOTSPOT,
-
-        // Airplane Mode
-        AIRPLANE_MODE_ON, AIRPLANE_MODE_OFF,
-
-        // Generic QS tile toggle (catch-all for any tile)
-        TOGGLE_QS_TILE,
 
         // Search
         SEARCH_GOOGLE,
@@ -133,6 +130,110 @@ object SmartCommandMatcher {
         PREVIOUS_SONG, TOGGLE_PLAY_PAUSE, STOP_MUSIC
     }
 
+    // ==================== EXACT PHRASES (instant HashMap lookup) ====================
+
+    private val exactPhrases: Map<String, CommandIntent> = buildMap {
+        // --- NAVIGATION ---
+        for (p in listOf("go home", "ghar jao", "ghar chalo", "home jao", "go to home",
+                         "home screen", "home", "ghar", "ホーム", "घर जाओ"))
+            put(p, CommandIntent.GO_HOME)
+
+        for (p in listOf("go back", "back", "peeche jao", "peeche", "peche jao",
+                         "wapas jao", "wapas", "piche jao", "वापस", "पीछे जाओ", "back jao"))
+            put(p, CommandIntent.GO_BACK)
+
+        for (p in listOf("recent apps", "recents", "recent", "open recents",
+                         "recent wale", "pichle apps", "multitask"))
+            put(p, CommandIntent.OPEN_RECENTS)
+
+        for (p in listOf("notifications", "notification", "open notifications",
+                         "notification dikhao", "notification kholo", "suchna"))
+            put(p, CommandIntent.OPEN_NOTIFICATIONS)
+
+        for (p in listOf("swipe left", "left swipe", "baaye swipe"))
+            put(p, CommandIntent.SWIPE_LEFT)
+
+        for (p in listOf("swipe right", "right swipe", "daaye swipe"))
+            put(p, CommandIntent.SWIPE_RIGHT)
+
+        for (p in listOf("quick settings", "open quick settings"))
+            put(p, CommandIntent.OPEN_QUICK_SETTINGS)
+
+        // --- WIFI ---
+        for (p in listOf("wifi on", "wifi on karo", "wifi chalu karo", "wifi laga", "wifi lagao",
+                         "turn on wifi", "enable wifi", "wifi chalu", "wifi connect karo"))
+            put(p, CommandIntent.WIFI_ON)
+        for (p in listOf("wifi off", "wifi off karo", "wifi band karo", "wifi hata",
+                         "turn off wifi", "disable wifi", "wifi band", "wifi disconnect karo"))
+            put(p, CommandIntent.WIFI_OFF)
+
+        // --- BLUETOOTH ---
+        for (p in listOf("bluetooth on", "bluetooth on karo", "bluetooth chalu", "bt on",
+                         "turn on bluetooth", "enable bluetooth", "bluetooth chalu karo"))
+            put(p, CommandIntent.BLUETOOTH_ON)
+        for (p in listOf("bluetooth off", "bluetooth off karo", "bluetooth band", "bt off",
+                         "turn off bluetooth", "disable bluetooth", "bluetooth band karo"))
+            put(p, CommandIntent.BLUETOOTH_OFF)
+
+        // --- MOBILE DATA ---
+        for (p in listOf("data on", "data on karo", "mobile data on", "data chalu",
+                         "net on", "internet on karo", "turn on data", "enable data",
+                         "mobile data chalu", "data laga"))
+            put(p, CommandIntent.MOBILE_DATA_ON)
+        for (p in listOf("data off", "data off karo", "mobile data off", "data band",
+                         "net off", "internet band karo", "turn off data", "disable data",
+                         "mobile data band", "data hata"))
+            put(p, CommandIntent.MOBILE_DATA_OFF)
+
+        // --- DND ---
+        for (p in listOf("dnd on", "do not disturb on", "silent mode on", "dnd chalu",
+                         "dnd on karo", "silence on", "shant karo"))
+            put(p, CommandIntent.DND_ON)
+        for (p in listOf("dnd off", "do not disturb off", "silent mode off", "dnd band",
+                         "dnd off karo", "silence off", "shant band"))
+            put(p, CommandIntent.DND_OFF)
+
+        // --- HOTSPOT ---
+        for (p in listOf("hotspot on", "hotspot on karo", "hotspot chalu", "hotspot laga",
+                         "turn on hotspot", "enable hotspot"))
+            put(p, CommandIntent.HOTSPOT_ON)
+        for (p in listOf("hotspot off", "hotspot off karo", "hotspot band",
+                         "turn off hotspot", "disable hotspot", "hotspot hata"))
+            put(p, CommandIntent.HOTSPOT_OFF)
+
+        // --- AIRPLANE MODE ---
+        for (p in listOf("airplane mode on", "flight mode on", "airplane on",
+                         "airplane mode chalu", "havayi mode on"))
+            put(p, CommandIntent.AIRPLANE_MODE_ON)
+        for (p in listOf("airplane mode off", "flight mode off", "airplane off",
+                         "airplane mode band", "havayi mode off"))
+            put(p, CommandIntent.AIRPLANE_MODE_OFF)
+
+        // --- AUTO ROTATE ---
+        for (p in listOf("auto rotate on", "rotation on", "rotate on",
+                         "auto rotate chalu", "rotation chalu"))
+            put(p, CommandIntent.AUTO_ROTATE_ON)
+        for (p in listOf("auto rotate off", "rotation off", "rotate off",
+                         "rotation lock", "rotation band", "auto rotate band"))
+            put(p, CommandIntent.AUTO_ROTATE_OFF)
+
+        // --- DARK MODE ---
+        for (p in listOf("dark mode on", "dark mode chalu", "night mode on",
+                         "dark theme on", "dark mode laga"))
+            put(p, CommandIntent.DARK_MODE_ON)
+        for (p in listOf("dark mode off", "dark mode band", "night mode off",
+                         "light mode on", "dark theme off"))
+            put(p, CommandIntent.DARK_MODE_OFF)
+
+        // --- LOCATION ---
+        for (p in listOf("location on", "gps on", "location chalu",
+                         "turn on location", "enable location"))
+            put(p, CommandIntent.LOCATION_ON)
+        for (p in listOf("location off", "gps off", "location band",
+                         "turn off location", "disable location"))
+            put(p, CommandIntent.LOCATION_OFF)
+    }
+
     // ==================== KEYWORD DATABASE ====================
 
     /**
@@ -165,35 +266,18 @@ object SmartCommandMatcher {
 
         // === NAVIGATION ===
         IntentKeywords(CommandIntent.GO_HOME, listOf(
-            setOf("home", "ghar", "main", "desktop", "launcher", "होम", "घर", "homescreen")
+            setOf("home", "ghar", "main", "desktop", "launcher", "ホーム", "घर", "homescreen")
         )),
         IntentKeywords(CommandIntent.GO_BACK, listOf(
             setOf("back", "peeche", "peche", "piche", "wapas", "return", "पीछे", "वापस", "pichhe")
         )),
         IntentKeywords(CommandIntent.OPEN_RECENTS, listOf(
-            setOf("recent", "recents", "multitask", "haal", "hal", "रीसेंट", "हाल", "recent apps")
+            setOf("recent", "recents", "multitask", "haal", "hal", "pichle", "रीसेंट")
         )),
         IntentKeywords(CommandIntent.OPEN_NOTIFICATIONS, listOf(
-            setOf("notification", "notifications", "notify", "notif", "suchna", "नोटिफिकेशन", "सूचना"),
-            setOf("open", "show", "kholo", "dikhao", "dekho", "check", "panel", "bar", "खोलो", "दिखाओ")
+            setOf("notification", "notifications", "notify", "notif", "suchna", "नोटिफिकेशन"),
+            setOf("open", "show", "kholo", "dikhao", "dekho", "check", "panel")
         )),
-        IntentKeywords(CommandIntent.UNLOCK_PHONE, listOf(
-            setOf("unlock", "unlocked", "unlocking", "wake", "jagao", "जगाओ", "अनलॉक"),
-            setOf("phone", "screen", "device", "फोन", "स्क्रीन")
-        ), requireAll = true, weight = 1.3f),
-        IntentKeywords(CommandIntent.LOCK_PHONE, listOf(
-            setOf("lock", "locked", "locking", "लॉक", "sleep"),  // Removed "band" — conflicts with STOP_ALL
-            setOf("phone", "screen", "device", "karo", "фोन", "स्क्रीन", "करो")
-        ), requireAll = true, weight = 1.5f),  // Higher weight to prevent confusion with UNLOCK
-
-        // === SCROLLING & SWIPING ===
-        IntentKeywords(CommandIntent.SCROLL_DOWN, listOf(
-            setOf("scroll", "neeche", "niche", "down", "page", "नीचे", "स्क्रॉल")
-        )),
-        IntentKeywords(CommandIntent.SCROLL_UP, listOf(
-            setOf("scroll", "upar", "oopar", "up", "page", "ऊपर", "स्क्रॉल"),
-            setOf("up", "upar", "oopar", "ऊपर")
-        ), requireAll = true),
         IntentKeywords(CommandIntent.SWIPE_LEFT, listOf(
             setOf("swipe", "slide", "स्वाइप"),
             setOf("left", "baaye", "baye", "बाएं")
@@ -201,6 +285,95 @@ object SmartCommandMatcher {
         IntentKeywords(CommandIntent.SWIPE_RIGHT, listOf(
             setOf("swipe", "slide", "स्वाइप"),
             setOf("right", "daaye", "daye", "दाएं")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.OPEN_QUICK_SETTINGS, listOf(
+            setOf("quick", "control", "क्विक"),
+            setOf("settings", "setting", "panel", "सेटिंग")
+        ), requireAll = true),
+
+        // === LOCK / UNLOCK ===
+        IntentKeywords(CommandIntent.UNLOCK_PHONE, listOf(
+            setOf("unlock", "unlocked", "unlocking", "wake", "jagao", "जगाओ", "अनलॉक"),
+            setOf("phone", "screen", "device", "फोन", "स्क्रीन")
+        ), requireAll = true, weight = 1.3f),
+        IntentKeywords(CommandIntent.LOCK_PHONE, listOf(
+            setOf("lock", "locked", "locking", "लॉक", "sleep"),
+            setOf("phone", "screen", "device", "karo", "фоन", "स्क्रीन", "करो")
+        ), requireAll = true, weight = 1.5f),
+
+        // === SCROLLING ===
+        IntentKeywords(CommandIntent.SCROLL_DOWN, listOf(
+            setOf("scroll", "neeche", "niche", "down", "page", "नीचे", "स्क्रॉल", "page down")
+        )),
+        IntentKeywords(CommandIntent.SCROLL_UP, listOf(
+            setOf("scroll", "upar", "oopar", "up", "page", "ऊपर", "स्क्रॉल", "page up"),
+            setOf("up", "upar", "oopar", "ऊपर")
+        ), requireAll = true),
+
+        // === QS TOGGLE KEYWORDS (fallback for variations not in exactPhrases) ===
+        IntentKeywords(CommandIntent.WIFI_ON, listOf(
+            setOf("wifi", "wi-fi", "वाईफाई"),
+            setOf("on", "chalu", "shuru", "enable", "connect", "laga", "चालू")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.WIFI_OFF, listOf(
+            setOf("wifi", "wi-fi", "वाईफाई"),
+            setOf("off", "band", "disable", "disconnect", "hata", "बंद")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.BLUETOOTH_ON, listOf(
+            setOf("bluetooth", "bt", "ब्लूटूथ"),
+            setOf("on", "chalu", "enable", "connect", "laga", "चालू")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.BLUETOOTH_OFF, listOf(
+            setOf("bluetooth", "bt", "ब्लूटूथ"),
+            setOf("off", "band", "disable", "disconnect", "hata", "बंद")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.MOBILE_DATA_ON, listOf(
+            setOf("data", "mobile", "internet", "net"),
+            setOf("on", "chalu", "enable", "laga", "चालू")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.MOBILE_DATA_OFF, listOf(
+            setOf("data", "mobile", "internet", "net"),
+            setOf("off", "band", "disable", "hata", "बंद")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.DND_ON, listOf(
+            setOf("dnd", "disturb", "silent", "silence", "shant", "डीएनडी"),
+            setOf("on", "enable", "chalu", "start", "mode", "चालू")
+        )),
+        IntentKeywords(CommandIntent.DND_OFF, listOf(
+            setOf("dnd", "disturb", "silent", "silence", "shant", "डीएनडी"),
+            setOf("off", "disable", "band", "hata", "बंद")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.HOTSPOT_ON, listOf(
+            setOf("hotspot", "tethering", "हॉटस्पॉट"),
+            setOf("on", "chalu", "enable", "laga", "चालू")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.HOTSPOT_OFF, listOf(
+            setOf("hotspot", "tethering", "हॉटस्पॉट"),
+            setOf("off", "band", "disable", "hata", "बंद")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.AIRPLANE_MODE_ON, listOf(
+            setOf("airplane", "aeroplane", "flight", "havayi", "फ्लाइट"),
+            setOf("mode", "on", "chalu", "enable", "चालू")
+        )),
+        IntentKeywords(CommandIntent.AIRPLANE_MODE_OFF, listOf(
+            setOf("airplane", "aeroplane", "flight", "havayi", "फ्लाइट"),
+            setOf("off", "band", "disable", "hata", "बंद")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.DARK_MODE_ON, listOf(
+            setOf("dark", "night", "डार्क"),
+            setOf("mode", "theme", "on", "chalu", "enable", "चालू")
+        )),
+        IntentKeywords(CommandIntent.DARK_MODE_OFF, listOf(
+            setOf("dark", "night", "light", "डार्क"),
+            setOf("mode", "theme", "off", "band", "disable", "बंद")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.LOCATION_ON, listOf(
+            setOf("location", "gps", "लोकेशन"),
+            setOf("on", "chalu", "enable", "चालू")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.LOCATION_OFF, listOf(
+            setOf("location", "gps", "लोकेशन"),
+            setOf("off", "band", "disable", "बंद")
         ), requireAll = true),
 
         // === VOLUME ===
@@ -219,23 +392,7 @@ object SmartCommandMatcher {
             setOf("unmute", "अनम्यूट")
         )),
 
-        // === CONNECTIVITY ===
-        IntentKeywords(CommandIntent.WIFI_ON, listOf(
-            setOf("wifi", "wi-fi", "internet", "net", "वाईफाई"),
-            setOf("on", "chalu", "shuru", "enable", "connect", "laga", "jod", "चालू", "शुरू", "लगा")
-        ), requireAll = true),
-        IntentKeywords(CommandIntent.WIFI_OFF, listOf(
-            setOf("wifi", "wi-fi", "internet", "net", "वाईफाई"),
-            setOf("off", "band", "disable", "disconnect", "hata", "बंद", "हटा")
-        ), requireAll = true),
-        IntentKeywords(CommandIntent.BLUETOOTH_ON, listOf(
-            setOf("bluetooth", "bt", "ब्लूटूथ"),
-            setOf("on", "chalu", "shuru", "enable", "connect", "laga", "jod", "चालू", "शुरू")
-        ), requireAll = true),
-        IntentKeywords(CommandIntent.BLUETOOTH_OFF, listOf(
-            setOf("bluetooth", "bt", "ब्लूटूथ"),
-            setOf("off", "band", "disable", "disconnect", "hata", "बंद", "हटा")
-        ), requireAll = true),
+
 
         // === FLASHLIGHT ===
         IntentKeywords(CommandIntent.FLASHLIGHT_ON, listOf(
@@ -285,7 +442,7 @@ object SmartCommandMatcher {
             setOf("song", "track", "gaana", "gana", "गाना")
         )),
         IntentKeywords(CommandIntent.PREVIOUS_SONG, listOf(
-            setOf("previous", "prev", "pichla", "pichle", "back", "last", "पिछला"),
+            setOf("previous", "prev", "pichla", "pichle", "last", "पिछला"),
             setOf("song", "track", "gaana", "gana", "गाना")
         )),
         IntentKeywords(CommandIntent.STOP_MUSIC, listOf(
@@ -326,11 +483,7 @@ object SmartCommandMatcher {
             setOf("off", "band", "disable", "lock", "portrait", "बंद")
         ), requireAll = true),
 
-        // === QUICK SETTINGS ===
-        IntentKeywords(CommandIntent.QUICK_SETTINGS, listOf(
-            setOf("quick", "control", "shortcut", "क्विक", "कंट्रोल"),
-            setOf("settings", "setting", "panel", "center", "centre", "सेटिंग", "पैनल")
-        ), requireAll = true),
+
 
         // === BRIGHTNESS ===
         IntentKeywords(CommandIntent.BRIGHTNESS_UP, listOf(
@@ -364,43 +517,7 @@ object SmartCommandMatcher {
             setOf("set", "laga", "lagao", "start", "shuru", "rakh", "लगाओ", "शुरू", "रख")
         )),
 
-        // === DND ===
-        IntentKeywords(CommandIntent.DND_ON, listOf(
-            setOf("dnd", "disturb", "silent", "silence", "shant", "डीएनडी", "साइलेंट", "शांत"),
-            setOf("on", "enable", "chalu", "start", "mode", "चालू", "मोड")
-        )),
-        IntentKeywords(CommandIntent.DND_OFF, listOf(
-            setOf("dnd", "disturb", "silent", "silence", "shant", "डीएनडी", "साइलेंट", "शांत"),
-            setOf("off", "disable", "band", "hata", "बंद", "हटा")
-        ), requireAll = true),
 
-        // === HOTSPOT ===
-        IntentKeywords(CommandIntent.TOGGLE_HOTSPOT, listOf(
-            setOf("hotspot", "tethering", "हॉटस्पॉट", "टेथरिंग"),
-            setOf("on", "off", "chalu", "band", "enable", "disable", "start", "stop", "toggle", "laga", "hata", "चालू", "बंद")
-        )),
-
-        // === AIRPLANE MODE ===
-        IntentKeywords(CommandIntent.AIRPLANE_MODE_ON, listOf(
-            setOf("airplane", "aeroplane", "flight", "havayi", "एरोप्लेन", "हवाई", "फ्लाइट"),
-            setOf("mode", "on", "chalu", "enable", "start", "मोड", "चालू")
-        )),
-        IntentKeywords(CommandIntent.AIRPLANE_MODE_OFF, listOf(
-            setOf("airplane", "aeroplane", "flight", "havayi", "एरोप्लेन", "हवाई", "फ्लाइट"),
-            setOf("off", "band", "disable", "hata", "बंद", "हटा")
-        ), requireAll = true),
-
-        // === GENERIC QS TILE TOGGLE (catch-all) ===
-        IntentKeywords(CommandIntent.TOGGLE_QS_TILE, listOf(
-            setOf("dark", "mode", "nfc", "screencast", "cast", "mirror",
-                  "eye", "comfort", "night", "share", "quick", "vibration",
-                  "vibrate", "power", "saving", "saver", "qr", "scan",
-                  "record", "recording", "screen",
-                  "कंपन", "डार्क", "एनएफसी"),
-            setOf("on", "off", "chalu", "band", "enable", "disable",
-                  "start", "stop", "toggle", "laga", "hata",
-                  "चालू", "बंद", "लगा", "हटा", "mode")
-        )),
 
         // === NOTIFICATIONS ===
         IntentKeywords(CommandIntent.CLEAR_NOTIFICATIONS, listOf(
@@ -563,7 +680,15 @@ object SmartCommandMatcher {
 
         if (words.isEmpty()) return null
 
-        // --- CONTEXT-AWARE PRE-PROCESSING ---
+        // --- STEP 1: EXACT PHRASE LOOKUP (instant 0ms) ---
+        val normalized = rawCommand.trim().lowercase()
+        val exactMatch = exactPhrases[normalized]
+        if (exactMatch != null) {
+            Log.i(TAG, "Exact phrase match: '$normalized' → $exactMatch")
+            return MatchResult(exactMatch, 5.0f)
+        }
+
+        // --- STEP 2: CONTEXT-AWARE PRE-PROCESSING ---
         val lowerRaw = rawCommand.lowercase()
         val lowerApp = currentAppName.lowercase()
         
@@ -608,7 +733,7 @@ object SmartCommandMatcher {
 
         for (intentDef in intentDatabase) {
             val score = scoreIntent(words, intentDef)
-            if (score >= 2.0f && (bestMatch == null || score > bestMatch.score)) { // Lowered threshold to 2.0
+            if (score >= MIN_SCORE && (bestMatch == null || score > bestMatch.score)) {
                 bestMatch = MatchResult(intentDef.intent, score)
             }
         }
@@ -697,58 +822,102 @@ object SmartCommandMatcher {
         return stemmed.joinToString(" ")
     }
 
-    /** Score a set of input words against an intent definition with fuzzy matching */
+    /** Score a set of input words against an intent definition with fuzzy matching.
+     *  Scoring per keyword match:
+     *    - Exact word match → 1.5
+     *    - Contains match   → 1.0
+     *    - Levenshtein ≤ 1  → 0.8
+     *    - Phonetic match   → 0.5
+     *  Bonuses:
+     *    - Short command (≤ 3 words) with score > 0  → +0.5
+     *    - requireAll and ALL groups matched          → +1.0
+     */
     private fun scoreIntent(inputWords: Set<String>, intentDef: IntentKeywords): Float {
         var totalScore = 0f
         var groupsMatched = 0
 
         for (group in intentDef.keywordGroups) {
-            var groupHits = 0
+            var groupScore = 0f
             for (keyword in group) {
-                // Layer 1: Exact match
+                // Layer 1: Exact word match → 1.5
                 if (keyword in inputWords) {
-                    groupHits++
-                } else {
-                    // Layer 2: Partial containment (with opposites protection)
-                    for (inputWord in inputWords) {
-                        if (inputWord.length >= 4 && keyword.length >= 4) {
-                            if (inputWord.contains(keyword) || keyword.contains(inputWord)) {
-                                // CRITICAL: Prevent "lock" matching "unlock" via containment
-                                // If one word is a prefix/suffix of the other, check they're not opposites
-                                val isOpposite = (inputWord == "lock" && keyword.startsWith("un")) ||
-                                                 (keyword == "lock" && inputWord.startsWith("un")) ||
-                                                 (inputWord == "mute" && keyword.startsWith("un")) ||
-                                                 (keyword == "mute" && inputWord.startsWith("un")) ||
-                                                 (inputWord == "do" && keyword.startsWith("un")) ||
-                                                 (keyword == "do" && inputWord.startsWith("un"))
-                                if (!isOpposite) {
-                                    groupHits++
-                                    break
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Layer 3: Fuzzy matching (edit distance + phonetic)
-                    if (groupHits == 0) {
-                        for (inputWord in inputWords) {
-                            if (isFuzzyMatch(inputWord, keyword)) {
-                                groupHits++
+                    groupScore += 1.5f
+                    continue
+                }
+
+                // Layer 2: Contains match → 1.0
+                var containsMatched = false
+                for (inputWord in inputWords) {
+                    if (inputWord.length >= 4 && keyword.length >= 4) {
+                        if (inputWord.contains(keyword) || keyword.contains(inputWord)) {
+                            // Prevent opposite matching (lock/unlock, on/off)
+                            val isOpposite = (inputWord == "lock" && keyword.startsWith("un")) ||
+                                             (keyword == "lock" && inputWord.startsWith("un")) ||
+                                             (inputWord == "mute" && keyword.startsWith("un")) ||
+                                             (keyword == "mute" && inputWord.startsWith("un")) ||
+                                             (inputWord == "do" && keyword.startsWith("un")) ||
+                                             (keyword == "do" && inputWord.startsWith("un"))
+                            if (!isOpposite) {
+                                groupScore += 1.0f
+                                containsMatched = true
                                 break
                             }
                         }
                     }
                 }
+
+                // Layer 3: Levenshtein ≤ 1 → 0.8
+                if (!containsMatched) {
+                    var fuzzyMatched = false
+                    for (inputWord in inputWords) {
+                        if (inputWord.length >= 3 && keyword.length >= 3) {
+                            val dist = levenshteinDistance(inputWord, keyword)
+                            if (dist <= 1) {
+                                groupScore += 0.8f
+                                fuzzyMatched = true
+                                break
+                            }
+                        }
+                    }
+
+                    // Layer 4: Phonetic match (first 2 consonants same) → 0.5
+                    if (!fuzzyMatched) {
+                        for (inputWord in inputWords) {
+                            if (inputWord.length >= 4 && keyword.length >= 4) {
+                                val p1 = getPhoneticCode(inputWord)
+                                val p2 = getPhoneticCode(keyword)
+                                if (p1 == p2) {
+                                    groupScore += 0.5f
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            if (groupHits > 0) {
+
+            // If requireAll and this group has 0 score → total = 0, break
+            if (intentDef.requireAll && groupScore == 0f) {
+                return 0f
+            }
+
+            if (groupScore > 0f) {
                 groupsMatched++
-                totalScore += 1.0f + (groupHits - 1) * 0.3f // First hit = 1.0, extras = 0.3 each
+                totalScore += groupScore
             }
         }
 
-        // If requireAll and not all groups matched, score = 0
-        if (intentDef.requireAll && groupsMatched < intentDef.keywordGroups.size) {
-            return 0f
+        // Apply bonuses
+        if (totalScore > 0f) {
+            // Short command bonus: ≤ 3 words → +0.5
+            if (inputWords.size <= 3) {
+                totalScore += 0.5f
+            }
+
+            // requireAll bonus: all groups matched → +1.0
+            if (intentDef.requireAll && groupsMatched == intentDef.keywordGroups.size) {
+                totalScore += 1.0f
+            }
         }
 
         return totalScore * intentDef.weight
@@ -1084,8 +1253,9 @@ object SmartCommandMatcher {
         "back" to CommandIntent.GO_BACK,
         "पीछे" to CommandIntent.GO_BACK,
         "recents" to CommandIntent.OPEN_RECENTS,
-        "hotspot" to CommandIntent.TOGGLE_HOTSPOT,
-        "हॉटस्पॉट" to CommandIntent.TOGGLE_HOTSPOT,
+        "notifications" to CommandIntent.OPEN_NOTIFICATIONS,
+        "hotspot" to CommandIntent.HOTSPOT_ON,
+        "हॉटस्पॉट" to CommandIntent.HOTSPOT_ON,
         "weather" to CommandIntent.OPEN_WEATHER,
         "मौसम" to CommandIntent.OPEN_WEATHER,
         "help" to CommandIntent.SHOW_HELP,

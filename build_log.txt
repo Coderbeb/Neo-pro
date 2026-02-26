@@ -1,0 +1,78 @@
+﻿.\gradlew.bat : WARNING: A 
+restricted method in 
+java.lang.System has been 
+called
+At line:1 char:1
++ .\gradlew.bat 
+compileDebugKotlin 2>&1 | 
+Out-File -FilePath 
+C:\Users\r ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (WARNI  
+  NG: A rest...has been c   
+ alled:String) [], Remot    
+eException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+WARNING: 
+java.lang.System::load has 
+been called by net.rubygrape
+fruit.platform.internal.Nati
+veLibraryLoader in an 
+unnamed module (file:/C:/Use
+rs/rajhr/.gradle/wrapper/dis
+ts/gradle-8.13-bin/5xuhj0ry1
+60q40clulazy9h7d/gradle-8.13
+/lib/native-platform-0.22-mi
+lestone-28.jar)
+WARNING: Use --enable-native
+-access=ALL-UNNAMED to 
+avoid a warning for callers 
+in this module
+WARNING: Restricted methods 
+will be blocked in a future 
+release unless native 
+access is enabled
+
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:dataBindingMergeDependencyArtifactsDebug UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:dataBindingGenBaseClassesDebug UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+
+> Task :app:compileDebugKotlin
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:507:41 'static field FULL_WAKE_LOCK: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:508:41 'static field ACQUIRE_CAUSES_WAKEUP: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:573:41 'static field FULL_WAKE_LOCK: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/AutomationAccessibilityService.kt:574:41 'static field ACQUIRE_CAUSES_WAKEUP: Int' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:966:13 Duplicate branch condition in 'when'.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1105:38 'var isSpeakerphoneOn: Boolean' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1857:63 'static fun getDefault(): SmsManager!' is deprecated. Deprecated in Java.
+w: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/app/src/main/java/com/autoapk/automation/core/CommandProcessor.kt:1885:71 'static fun getDefault(): SmsManager!' is deprecated. Deprecated in Java.
+
+[Incubating] Problems report is available at: file:///C:/Users/rajhr/OneDrive/Documents/Desktop/autoapk/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 13s
+16 actionable tasks: 1 executed, 15 up-to-date

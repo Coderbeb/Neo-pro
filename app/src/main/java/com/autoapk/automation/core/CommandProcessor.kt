@@ -47,10 +47,9 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     // Phase 3 Controllers
     private val cameraController = CameraController(context)
     private val callManager = CallManager(context)
+    private val flashlightController = FlashlightController(context)
+    private val directToggleController = DirectToggleController(context)
 
-    // Quick Settings Controller — handles all toggle tiles via accessibility
-    private val qsController: QuickSettingsController?
-        get() = AutomationAccessibilityService.instance?.let { QuickSettingsController(it) }
 
     private val service: AutomationAccessibilityService?
         get() = AutomationAccessibilityService.instance
@@ -87,6 +86,14 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     // === CONTACT DISAMBIGUATION STATE ===
     private var waitingForContactDisambiguation: Boolean = false
     private var pendingContactMatches: List<ContactRegistry.ContactMatch> = emptyList()
+
+    // === CONFIRMATION STATE (confidence levels) ===
+    private var waitingForConfirmation: Boolean = false
+    private var pendingConfirmationIntent: SmartCommandMatcher.CommandIntent? = null
+    private var pendingConfirmationCommand: String = ""
+    private var pendingConfirmationRawCommand: String = ""
+    private var pendingConfirmationParam: String = ""
+    private var confirmationTimeoutMs: Long = 0L
 
     // === IN-CALL STATE ===
     // When true, commands require the user's security code as prefix
@@ -281,8 +288,10 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
 
         // Translate Hindi/Hinglish to English, then normalize
         val translated = HindiCommandMapper.translate(commandToProcess)
-        val command = translated.trim().lowercase()
-        Log.i(TAG, "Processing command: '$command' (original: '${rawCommand.trim()}')")
+        // === TASK 3.2: Pre-process input before matching ===
+        val preProcessed = InputPreProcessor.preProcess(translated)
+        val command = preProcessed.trim().lowercase()
+        Log.i(TAG, "Processing command: '$command' (original: '${rawCommand.trim()}', pre-processed: '$preProcessed')")
 
         // === COMMAND COOLDOWN — reject duplicate within 2 seconds ===
         val now = System.currentTimeMillis()
@@ -337,6 +346,13 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             return handleContactDisambiguation(command)
         }
 
+        // === CONFIRMATION STATE (confidence levels) ===
+        if (waitingForConfirmation) {
+            lastProcessedCommand = command
+            lastProcessedTime = timestamp
+            return handleConfirmationResponse(command, rawCommand, timestamp)
+        }
+
         // === UNLOCK CODE VERIFICATION STATE MACHINE ===
         if (waitingForUnlockCode) {
             lastProcessedCommand = command
@@ -389,6 +405,19 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         val matchResult = smartMatcher.match(resolvedCommand, navigationContext.getCurrentApp() ?: "")
         if (matchResult != null) {
             Log.i(TAG, "Smart match: '$resolvedCommand' → ${matchResult.intent} (score=${matchResult.score}, param='${matchResult.extractedParam}')")
+
+            // === TASK 3.3: CONFIDENCE LEVELS ===
+            when {
+                matchResult.score >= 3.0f -> {
+                    // HIGH confidence → execute immediately
+                    Log.i(TAG, "HIGH confidence (${matchResult.score}) → executing immediately")
+                }
+                matchResult.score >= 1.5f -> {
+                    // MEDIUM confidence → execute but inform user
+                    Log.i(TAG, "MEDIUM confidence (${matchResult.score}) → executing with info")
+                }
+            }
+
             val result = executeIntent(matchResult.intent, resolvedCommand, rawCommand, matchResult.extractedParam)
             if (result) {
                 // Silently learn this mapping for faster future recall
@@ -428,10 +457,53 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         }
 
         // === LAYER 4: FINAL FALLBACK ===
-        service?.speak("Command not recognized: $rawCommand")
+        service?.speak("I didn't understand. Please try again")
         audioFeedback.playError()
         Log.w(TAG, "Unrecognized command: '$command' (no match in memory or scoring)")
         return false
+    }
+
+    /**
+     * Handle confirmation response ("yes"/"haan" or "no"/"nahi").
+     * Used for LOW confidence commands.
+     */
+    private fun handleConfirmationResponse(command: String, rawCommand: String, timestamp: Long): Boolean {
+        val yesWords = setOf("yes", "haan", "ha", "han", "ok", "okay", "sure", "theek", "sahi", "right", "correct")
+        val noWords = setOf("no", "nahi", "nah", "na", "mat", "cancel", "galat", "wrong")
+
+        val isYes = command.split(" ").any { it in yesWords }
+        val isNo = command.split(" ").any { it in noWords }
+
+        // Check for timeout (3 seconds)
+        val isTimedOut = System.currentTimeMillis() > confirmationTimeoutMs
+
+        if (isYes && pendingConfirmationIntent != null) {
+            Log.i(TAG, "Confirmation: YES → executing ${pendingConfirmationIntent}")
+            waitingForConfirmation = false
+            val result = executeIntent(
+                pendingConfirmationIntent!!,
+                pendingConfirmationCommand,
+                pendingConfirmationRawCommand,
+                pendingConfirmationParam
+            )
+            pendingConfirmationIntent = null
+            lastProcessedCommand = command
+            lastProcessedTime = timestamp
+            return result
+        } else if (isNo || isTimedOut) {
+            Log.i(TAG, "Confirmation: ${if (isTimedOut) "TIMEOUT" else "NO"} → cancelled")
+            waitingForConfirmation = false
+            pendingConfirmationIntent = null
+            service?.speak("Cancelled")
+            lastProcessedCommand = command
+            lastProcessedTime = timestamp
+            return true
+        }
+
+        // Neither yes nor no — treat as a new command
+        waitingForConfirmation = false
+        pendingConfirmationIntent = null
+        return processCommandInternal(command, rawCommand, timestamp)
     }
 
     /**
@@ -553,18 +625,83 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             }
 
             // === NAVIGATION ===
-            SmartCommandMatcher.CommandIntent.GO_HOME -> appNavigator.goHome()
-            SmartCommandMatcher.CommandIntent.GO_BACK -> appNavigator.goBack()
-            SmartCommandMatcher.CommandIntent.OPEN_RECENTS -> appNavigator.openRecents()
-            SmartCommandMatcher.CommandIntent.OPEN_NOTIFICATIONS -> appNavigator.openNotifications()
+            SmartCommandMatcher.CommandIntent.GO_HOME -> {
+                val svc = service ?: return notConnected()
+                val result = svc.goHome()
+                if (result) { svc.speak("Going home"); true }
+                else { 
+                    // Retry once after 200ms
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        val retry = service?.goHome() ?: false
+                        if (!retry) service?.speak("Failed to go home")
+                    }, 200)
+                    false
+                }
+            }
+            SmartCommandMatcher.CommandIntent.GO_BACK -> {
+                val svc = service ?: return notConnected()
+                val result = svc.goBack()
+                if (result) { svc.speak("Going back"); true }
+                else { svc.speak("Failed to go back"); false }
+            }
+            SmartCommandMatcher.CommandIntent.OPEN_RECENTS -> {
+                val svc = service ?: return notConnected()
+                val result = svc.openRecents()
+                if (result) { svc.speak("Opening recent apps"); true }
+                else { svc.speak("Failed to open recents"); false }
+            }
+            SmartCommandMatcher.CommandIntent.OPEN_NOTIFICATIONS -> {
+                val svc = service ?: return notConnected()
+                val result = svc.openNotifications()
+                if (result) { svc.speak("Opening notifications"); true }
+                else { svc.speak("Failed to open notifications"); false }
+            }
+            SmartCommandMatcher.CommandIntent.SWIPE_LEFT -> {
+                val svc = service ?: return notConnected()
+                val startX = svc.screenWidth * 0.8f
+                val endX = svc.screenWidth * 0.2f
+                val y = svc.screenHeight / 2f
+                val path = android.graphics.Path().apply {
+                    moveTo(startX, y)
+                    lineTo(endX, y)
+                }
+                val gesture = android.accessibilityservice.GestureDescription.Builder()
+                    .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 250))
+                    .build()
+                svc.dispatchGesture(gesture, null, null)
+                svc.speak("Swiped left")
+                true
+            }
+            SmartCommandMatcher.CommandIntent.SWIPE_RIGHT -> {
+                val svc = service ?: return notConnected()
+                val startX = svc.screenWidth * 0.2f
+                val endX = svc.screenWidth * 0.8f
+                val y = svc.screenHeight / 2f
+                val path = android.graphics.Path().apply {
+                    moveTo(startX, y)
+                    lineTo(endX, y)
+                }
+                val gesture = android.accessibilityservice.GestureDescription.Builder()
+                    .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 250))
+                    .build()
+                svc.dispatchGesture(gesture, null, null)
+                svc.speak("Swiped right")
+                true
+            }
+            SmartCommandMatcher.CommandIntent.OPEN_QUICK_SETTINGS -> {
+                val svc = service ?: return notConnected()
+                val result = svc.openQuickSettings()
+                if (result) { svc.speak("Opening quick settings"); true }
+                else { svc.speak("Failed to open quick settings"); false }
+            }
+
+            // === LOCK / UNLOCK ===
             SmartCommandMatcher.CommandIntent.UNLOCK_PHONE -> handleUnlockCommand(command)
             SmartCommandMatcher.CommandIntent.LOCK_PHONE -> service?.lockScreen() ?: notConnected()
 
-            // === SCROLLING & SWIPING ===
+            // === SCROLLING ===
             SmartCommandMatcher.CommandIntent.SCROLL_DOWN -> appNavigator.scrollDown()
             SmartCommandMatcher.CommandIntent.SCROLL_UP -> appNavigator.scrollUp()
-            SmartCommandMatcher.CommandIntent.SWIPE_LEFT -> { service?.swipeLeft(); true }
-            SmartCommandMatcher.CommandIntent.SWIPE_RIGHT -> { service?.swipeRight(); true }
 
             // === VOLUME ===
             SmartCommandMatcher.CommandIntent.VOLUME_UP -> adjustVolume(AudioManager.ADJUST_RAISE)
@@ -572,15 +709,45 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             SmartCommandMatcher.CommandIntent.MUTE -> adjustVolume(AudioManager.ADJUST_MUTE)
             SmartCommandMatcher.CommandIntent.UNMUTE -> adjustVolume(AudioManager.ADJUST_UNMUTE)
 
-            // === CONNECTIVITY (via Quick Settings) ===
-            SmartCommandMatcher.CommandIntent.WIFI_ON -> qsController?.toggle("wifi", true) ?: notConnected()
-            SmartCommandMatcher.CommandIntent.WIFI_OFF -> qsController?.toggle("wifi", false) ?: notConnected()
-            SmartCommandMatcher.CommandIntent.BLUETOOTH_ON -> qsController?.toggle("bluetooth", true) ?: notConnected()
-            SmartCommandMatcher.CommandIntent.BLUETOOTH_OFF -> qsController?.toggle("bluetooth", false) ?: notConnected()
+            // === CONNECTIVITY - WiFi ===
+            SmartCommandMatcher.CommandIntent.WIFI_ON -> handleToggle("WiFi", directToggleController.setWifi(true))
+            SmartCommandMatcher.CommandIntent.WIFI_OFF -> handleToggle("WiFi", directToggleController.setWifi(false))
 
-            // === FLASHLIGHT (via Quick Settings) ===
-            SmartCommandMatcher.CommandIntent.FLASHLIGHT_ON -> qsController?.toggle("flashlight", true) ?: notConnected()
-            SmartCommandMatcher.CommandIntent.FLASHLIGHT_OFF -> qsController?.toggle("flashlight", false) ?: notConnected()
+            // === CONNECTIVITY - Bluetooth ===
+            SmartCommandMatcher.CommandIntent.BLUETOOTH_ON -> handleToggle("Bluetooth", directToggleController.setBluetooth(true))
+            SmartCommandMatcher.CommandIntent.BLUETOOTH_OFF -> handleToggle("Bluetooth", directToggleController.setBluetooth(false))
+
+            // === CONNECTIVITY - Mobile Data ===
+            SmartCommandMatcher.CommandIntent.MOBILE_DATA_ON -> handleToggle("Mobile data", directToggleController.setMobileData(true))
+            SmartCommandMatcher.CommandIntent.MOBILE_DATA_OFF -> handleToggle("Mobile data", directToggleController.setMobileData(false))
+
+            // === DND ===
+            SmartCommandMatcher.CommandIntent.DND_ON -> handleToggle("Do not disturb", directToggleController.setDND(true))
+            SmartCommandMatcher.CommandIntent.DND_OFF -> handleToggle("Do not disturb", directToggleController.setDND(false))
+
+            // === HOTSPOT ===
+            SmartCommandMatcher.CommandIntent.HOTSPOT_ON -> handleToggle("Hotspot", directToggleController.setHotspot(true))
+            SmartCommandMatcher.CommandIntent.HOTSPOT_OFF -> handleToggle("Hotspot", directToggleController.setHotspot(false))
+
+            // === AIRPLANE MODE ===
+            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_ON -> handleToggle("Airplane mode", directToggleController.setAirplaneMode(true))
+            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_OFF -> handleToggle("Airplane mode", directToggleController.setAirplaneMode(false))
+
+            // === DARK MODE ===
+            SmartCommandMatcher.CommandIntent.DARK_MODE_ON -> handleToggle("Dark mode", directToggleController.setDarkMode(true))
+            SmartCommandMatcher.CommandIntent.DARK_MODE_OFF -> handleToggle("Dark mode", directToggleController.setDarkMode(false))
+
+            // === LOCATION ===
+            SmartCommandMatcher.CommandIntent.LOCATION_ON -> handleToggle("Location", directToggleController.setLocation(true))
+            SmartCommandMatcher.CommandIntent.LOCATION_OFF -> handleToggle("Location", directToggleController.setLocation(false))
+
+            // === AUTO ROTATE (new intents) ===
+            SmartCommandMatcher.CommandIntent.AUTO_ROTATE_ON -> handleToggle("Auto rotate", directToggleController.setAutoRotate(true))
+            SmartCommandMatcher.CommandIntent.AUTO_ROTATE_OFF -> handleToggle("Auto rotate", directToggleController.setAutoRotate(false))
+
+            // === FLASHLIGHT (via CameraManager — instant, no QS needed) ===
+            SmartCommandMatcher.CommandIntent.FLASHLIGHT_ON -> flashlightController.turnOn()
+            SmartCommandMatcher.CommandIntent.FLASHLIGHT_OFF -> flashlightController.turnOff()
 
             // === APP LAUNCHING ===
             SmartCommandMatcher.CommandIntent.OPEN_APP -> {
@@ -671,9 +838,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             SmartCommandMatcher.CommandIntent.ROTATION_ON -> toggleAutoRotate(true)
             SmartCommandMatcher.CommandIntent.ROTATION_OFF -> toggleAutoRotate(false)
 
-            // === QUICK SETTINGS ===
-            SmartCommandMatcher.CommandIntent.QUICK_SETTINGS -> appNavigator.openQuickSettings()
-
             // === BRIGHTNESS ===
             SmartCommandMatcher.CommandIntent.BRIGHTNESS_UP -> adjustBrightness(+30)
             SmartCommandMatcher.CommandIntent.BRIGHTNESS_DOWN -> adjustBrightness(-30)
@@ -693,31 +857,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                     command.replace(Regex(".*(timer|set timer)\\s*(for)?\\s*"), "").trim()
                 }
                 setTimer(durationStr)
-            }
-
-            // === DND (via Quick Settings) ===
-            SmartCommandMatcher.CommandIntent.DND_ON -> qsController?.toggle("do not disturb", true) ?: notConnected()
-            SmartCommandMatcher.CommandIntent.DND_OFF -> qsController?.toggle("do not disturb", false) ?: notConnected()
-
-            // === HOTSPOT (via Quick Settings) ===
-            SmartCommandMatcher.CommandIntent.TOGGLE_HOTSPOT -> qsController?.toggle("hotspot") ?: notConnected()
-
-            // === AIRPLANE MODE (via Quick Settings) ===
-            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_ON -> qsController?.toggle("airplane mode", true) ?: notConnected()
-            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_OFF -> qsController?.toggle("airplane mode", false) ?: notConnected()
-
-            // === GENERIC QS TILE (catch-all for dark mode, NFC, screen recording, etc.) ===
-            SmartCommandMatcher.CommandIntent.TOGGLE_QS_TILE -> {
-                val qs = qsController
-                if (qs != null) {
-                    val (tileQuery, direction) = qs.parseToggleCommand(command)
-                    if (tileQuery.isNotBlank()) {
-                        qs.toggle(tileQuery, direction)
-                    } else {
-                        service?.speak("Which setting do you want to toggle?")
-                        false
-                    }
-                } else notConnected()
             }
 
             // === SEARCH ===
@@ -886,8 +1025,35 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         return true
     }
 
-    @Suppress("DEPRECATION")
-    // Old toggleWifi, toggleBluetooth, toggleFlashlight removed — now handled by QuickSettingsController
+    /**
+     * Handle toggle result from DirectToggleController with appropriate voice feedback.
+     */
+    private fun handleToggle(name: String, result: DirectToggleController.ToggleResult): Boolean {
+        return when (result) {
+            DirectToggleController.ToggleResult.SUCCESS -> {
+                service?.speak("$name toggled")
+                true
+            }
+            DirectToggleController.ToggleResult.ALREADY_IN_STATE -> {
+                service?.speak("$name is already in the desired state")
+                true
+            }
+            DirectToggleController.ToggleResult.NEEDS_PANEL -> {
+                service?.speak("Opening $name settings")
+                true // Panel was opened, user needs to manually toggle
+            }
+            DirectToggleController.ToggleResult.NEEDS_PERMISSION -> {
+                service?.speak("$name needs permission. Opening settings.")
+                true
+            }
+            DirectToggleController.ToggleResult.FAILED -> {
+                service?.speak("Could not toggle $name")
+                false
+            }
+        }
+    }
+
+
 
 
     private fun exitChatMode(): Boolean {
@@ -895,7 +1061,8 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         chatMode.currentApp = ""
         chatMode.currentContact = ""
         chatMode.contactNumber = ""
-        appNavigator.goBack()
+        // Press back to leave chat
+        service?.let { it.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK) }
         service?.speak("Chat mode ended")
         return true
     }
@@ -1182,9 +1349,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         }
     }
 
-    // ==================== DO NOT DISTURB ====================
 
-    // Old toggleDND and toggleHotspot removed — now handled by QuickSettingsController
 
 
     // ==================== GOOGLE SEARCH ====================

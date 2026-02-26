@@ -2,10 +2,15 @@ package com.autoapk.automation.core
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Path
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.util.DisplayMetrics
 import android.util.Log
@@ -13,6 +18,10 @@ import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.WindowManager
+import androidx.core.app.NotificationCompat
+import java.lang.ref.WeakReference
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -29,17 +38,52 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
 
     companion object {
         private const val TAG = "Neo_Service"
+        private val dateFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
-        // Singleton reference so other components can send commands to the service
-        var instance: AutomationAccessibilityService? = null
-            private set
+        // WeakReference singleton to prevent memory leaks
+        private var instanceRef: WeakReference<AutomationAccessibilityService>? = null
 
-        fun isRunning(): Boolean = instance != null
+        /**
+         * Get the service instance safely.
+         * Returns null if service is dead or not connected.
+         */
+        @JvmStatic
+        fun get(): AutomationAccessibilityService? = instanceRef?.get()
+
+        /**
+         * Returns true only if instance is not null AND service is bound.
+         */
+        @JvmStatic
+        fun isAlive(): Boolean {
+            val svc = instanceRef?.get() ?: return false
+            return try {
+                svc.rootInActiveWindow  // test if binding is alive
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+        /**
+         * Legacy compat — alias for get() != null
+         */
+        @JvmStatic
+        fun isRunning(): Boolean = get() != null
+
+        /**
+         * Backward-compatible instance property.
+         * Other existing code reads `AutomationAccessibilityService.instance`.
+         */
+        @JvmStatic
+        val instance: AutomationAccessibilityService?
+            get() = instanceRef?.get()
     }
 
     private lateinit var tts: TextToSpeech
-    private var screenWidth: Int = 1080
-    private var screenHeight: Int = 2400
+    var screenWidth: Int = 1080
+        private set
+    var screenHeight: Int = 2400
+        private set
     private var ttsReady: Boolean = false
 
     // Track last spoken text for "repeat" command
@@ -61,11 +105,40 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
     private var lastVolumeDownTime: Long = 0
     private val COMBO_WINDOW_MS = 400L
 
+    // === SERVICE HEALTH MONITOR ===
+    private val healthHandler = Handler(Looper.getMainLooper())
+    private var healthFailCount = 0
+    private val HEALTH_CHECK_INTERVAL_MS = 30_000L
+    private val MAX_FAIL_COUNT = 3
+
+    private val healthCheckRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val root = rootInActiveWindow
+                if (root != null) {
+                    healthFailCount = 0
+                    Log.d(TAG, "Health check: OK")
+                } else {
+                    healthFailCount++
+                    Log.w(TAG, "Health check: rootInActiveWindow is NULL (fail #$healthFailCount)")
+                    if (healthFailCount > MAX_FAIL_COUNT) {
+                        Log.e(TAG, "Service appears zombie — attempting recovery")
+                        attemptServiceRecovery()
+                    }
+                }
+            } catch (e: Exception) {
+                healthFailCount++
+                Log.e(TAG, "Health check exception: ${e.message}")
+            }
+            healthHandler.postDelayed(this, HEALTH_CHECK_INTERVAL_MS)
+        }
+    }
+
     // ==================== LIFECYCLE ====================
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        instance = this
+        instanceRef = WeakReference(this)
         tts = TextToSpeech(this, this)
         updateScreenDimensions()
 
@@ -76,11 +149,31 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         wakeTrigger = WakeTrigger(this, this) { triggerWake() }
         wakeTrigger?.register()
 
-        Log.i(TAG, "Neo Accessibility Service CONNECTED (with app automation)")
+        // Start foreground notification to prevent Android from killing service
+        startForegroundNotification()
+
+        // Start health monitor — checks every 30 seconds
+        healthHandler.postDelayed(healthCheckRunnable, HEALTH_CHECK_INTERVAL_MS)
+
+        // Service verification — delayed 1 second to let things settle
+        healthHandler.postDelayed({
+            val root = rootInActiveWindow
+            if (root != null) {
+                Log.i(TAG, "SERVICE_VERIFIED — rootInActiveWindow accessible")
+                sendBroadcast(Intent("com.autoapk.automation.SERVICE_VERIFIED"))
+            } else {
+                Log.e(TAG, "SERVICE_FAILED — rootInActiveWindow is null after connect")
+                sendBroadcast(Intent("com.autoapk.automation.SERVICE_FAILED"))
+            }
+        }, 1000)
+
+        Log.i(TAG, "[${dateFormat.format(Date())}] Neo Accessibility Service CONNECTED (with health monitor)")
     }
 
     override fun onDestroy() {
-        instance = null
+        healthHandler.removeCallbacks(healthCheckRunnable)
+        instanceRef?.clear()
+        instanceRef = null
         commandRouter?.destroy()
         commandRouter = null
         wakeTrigger?.unregister()
@@ -89,7 +182,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
             tts.stop()
             tts.shutdown()
         }
-        Log.i(TAG, "Neo Accessibility Service DESTROYED")
+        Log.i(TAG, "[${dateFormat.format(Date())}] Neo Accessibility Service DESTROYED")
         super.onDestroy()
     }
 
@@ -255,26 +348,117 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         }
     }
 
+    // ==================== FOREGROUND NOTIFICATION ====================
+
+    private fun startForegroundNotification() {
+        val channelId = "assistant_service"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Voice Assistant Service",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Keeps voice assistant active in background"
+                setShowBadge(false)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Voice Assistant Active")
+            .setContentText("Listening for commands")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        try {
+            startForeground(1, notification)
+            Log.i(TAG, "Foreground notification started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not start foreground: ${e.message}")
+        }
+    }
+
+    // ==================== SERVICE HEALTH RECOVERY ====================
+
+    private fun attemptServiceRecovery() {
+        try {
+            // Force-update serviceInfo to trigger rebind
+            val info = serviceInfo
+            if (info != null) {
+                serviceInfo = info
+                Log.i(TAG, "Service recovery: updated serviceInfo to force rebind")
+            }
+            healthFailCount = 0
+        } catch (e: Exception) {
+            Log.e(TAG, "Service recovery failed: ${e.message}")
+            // Send notification to user
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notification = NotificationCompat.Builder(this, "assistant_service")
+                .setContentTitle("Voice Assistant Issue")
+                .setContentText("Service needs re-enabling. Please disable and re-enable in Accessibility Settings.")
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+            nm.notify(2, notification)
+        }
+    }
+
+    /**
+     * Verify service health — can be called from external code.
+     * Returns true if service is alive and functional.
+     */
+    fun verifyServiceHealth(): Boolean {
+        return try {
+            val root = rootInActiveWindow
+            if (root != null) {
+                Log.i(TAG, "verifyServiceHealth: OK")
+                true
+            } else {
+                Log.w(TAG, "verifyServiceHealth: rootInActiveWindow is null")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyServiceHealth: exception: ${e.message}")
+            false
+        }
+    }
+
     // ==================== GLOBAL ACTIONS ====================
 
     fun goHome(): Boolean {
-        speak("Going home")
         return performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
     fun goBack(): Boolean {
-        speak("Going back")
         return performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
     fun openRecents(): Boolean {
-        speak("Opening recent apps")
         return performGlobalAction(GLOBAL_ACTION_RECENTS)
     }
 
     fun openNotifications(): Boolean {
-        speak("Opening notifications")
         return performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+    }
+
+    fun openQuickSettings(): Boolean {
+        return performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+    }
+
+    fun takeScreenshotAction(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+        } else {
+            Log.w(TAG, "Screenshot requires API 28+")
+            false
+        }
+    }
+
+    fun splitScreen(): Boolean {
+        return performGlobalAction(GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
     }
 
     fun lockScreen(): Boolean {
@@ -592,9 +776,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         dispatchGesture(gesture, null, null)
     }
 
-    fun openQuickSettings(): Boolean {
-        return performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
-    }
+
 
     // ==================== APP AWARENESS ====================
 
@@ -736,19 +918,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         swipe(startX, startY, startX, endY, 300, callback)
     }
 
-    fun swipeLeft(callback: GestureResultCallback? = null) {
-        val startX = screenWidth * 0.8f
-        val endX = screenWidth * 0.2f
-        val y = screenHeight / 2f
-        swipe(startX, y, endX, y, 300, callback)
-    }
 
-    fun swipeRight(callback: GestureResultCallback? = null) {
-        val startX = screenWidth * 0.2f
-        val endX = screenWidth * 0.8f
-        val y = screenHeight / 2f
-        swipe(startX, y, endX, y, 300, callback)
-    }
 
     private fun swipe(
         startX: Float, startY: Float,
@@ -861,18 +1031,6 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         return textBuilder.toString()
     }
 
-    // ==================== SCREENSHOT ====================
-
-    fun takeScreenshotAction(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
-            speak("Screenshot taken")
-            true
-        } else {
-            speak("Screenshot requires Android 9 or later")
-            false
-        }
-    }
 
     // ==================== NOTIFICATIONS ====================
 

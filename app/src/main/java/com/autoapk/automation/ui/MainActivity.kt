@@ -23,6 +23,7 @@ import com.autoapk.automation.input.BluetoothCommandReceiver
 import com.autoapk.automation.input.GoogleVoiceCommandManager
 import com.autoapk.automation.core.AppRegistry
 import com.autoapk.automation.core.NeoStateManager
+import com.autoapk.automation.core.ServiceHealthMonitor
 
 /**
  * Main Activity - Setup & Control Dashboard
@@ -54,6 +55,9 @@ class MainActivity : AppCompatActivity() {
 
     // Neo State Manager
     private lateinit var neoState: NeoStateManager
+
+    // Service Health Monitor — checks accessibility service every 3 seconds
+    private lateinit var healthMonitor: ServiceHealthMonitor
 
     // ==================== LIFECYCLE ====================
 
@@ -114,6 +118,11 @@ class MainActivity : AppCompatActivity() {
         binding.btnStartVoice.isEnabled = true
         binding.btnStartVoice.text = "🎤  Start Voice Control"
         addToLog("✅ Voice recognition ready (Google Speech)")
+
+        // Initialize Service Health Monitor
+        healthMonitor = ServiceHealthMonitor(this)
+        healthMonitor.onAppLaunch()
+        addToLog(if (healthMonitor.isServiceEnabled()) "✅ Accessibility service enabled" else "⚠️ Accessibility service not enabled")
     }
 
     private fun setupNeoStateManager() {
@@ -180,6 +189,8 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateStatusIndicators()
+        // Start health monitoring
+        healthMonitor.startMonitoring()
         // Refresh app registry if stale
         if (appRegistry.needsScan()) {
             appRegistry.scanInstalledApps()
@@ -207,6 +218,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        healthMonitor.stopMonitoring()
         voiceManager.stopListening()
         voiceManager.destroy()
         bluetoothReceiver.stop()
