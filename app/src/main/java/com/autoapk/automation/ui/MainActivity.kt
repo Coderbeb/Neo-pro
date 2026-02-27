@@ -202,11 +202,13 @@ class MainActivity : AppCompatActivity() {
         // Re-wire NeoStateManager to service (may have reconnected)
         AutomationAccessibilityService.instance?.neoState = neoState
 
-        // Register TTS listener — pause mic while TTS speaks to prevent feedback loop
+        // Register TTS listener — pause mic during TTS to prevent echo, resume quickly after
+        // TTS audio attributes are set to NAVIGATION_GUIDANCE so mic MAY stay on
+        // If the device still pauses the mic, the resume is very fast (150ms)
         AutomationAccessibilityService.instance?.ttsListener =
             object : AutomationAccessibilityService.TtsListener {
                 override fun onTtsStarted() {
-                    Log.d(TAG, "TTS started → pausing mic")
+                    Log.d(TAG, "TTS started → pausing mic to prevent echo")
                     voiceManager.pauseListening()
                 }
                 override fun onTtsFinished() {

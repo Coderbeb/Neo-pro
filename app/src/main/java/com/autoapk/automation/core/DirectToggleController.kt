@@ -50,12 +50,14 @@ class DirectToggleController(private val context: Context) {
         return try {
             val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
+            // Check current state first (works on all API levels)
+            if (wifiManager.isWifiEnabled == enabled) {
+                Log.i(TAG, "WiFi already ${if (enabled) "on" else "off"}")
+                return ToggleResult.ALREADY_IN_STATE
+            }
+
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                 // Direct toggle for API < 29
-                if (wifiManager.isWifiEnabled == enabled) {
-                    Log.i(TAG, "WiFi already ${if (enabled) "on" else "off"}")
-                    return ToggleResult.ALREADY_IN_STATE
-                }
                 val result = wifiManager.setWifiEnabled(enabled)
                 if (result) {
                     Log.i(TAG, "WiFi toggled ${if (enabled) "on" else "off"} via direct API")
@@ -65,12 +67,8 @@ class DirectToggleController(private val context: Context) {
                     ToggleResult.FAILED
                 }
             } else {
-                // API 29+: Need to open panel
-                Log.i(TAG, "WiFi requires panel on API ${Build.VERSION.SDK_INT}")
-                val intent = Intent(Settings.Panel.ACTION_WIFI).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
+                // API 29+: Cannot toggle directly — return NEEDS_PANEL for QS fallback
+                Log.i(TAG, "WiFi requires QS fallback on API ${Build.VERSION.SDK_INT}")
                 ToggleResult.NEEDS_PANEL
             }
         } catch (e: Exception) {
@@ -122,41 +120,33 @@ class DirectToggleController(private val context: Context) {
 
     /**
      * Toggle mobile data on/off.
-     * Method 1: TelephonyManager reflection (setDataEnabled)
-     * Method 2: Open internet connectivity panel
+     * Uses WiFi-style approach:
+     *   Step 1: Check current state via TelephonyManager.isDataEnabled (API 26+)
+     *   Step 2: Return NEEDS_PANEL for QS tile fallback (direct API unreliable)
      */
     fun setMobileData(enabled: Boolean): ToggleResult {
-        // Method 1: Reflection
-        try {
-            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-            val method: Method = tm.javaClass.getDeclaredMethod("setDataEnabled", Boolean::class.java)
-            method.isAccessible = true
-            method.invoke(tm, enabled)
-            Log.i(TAG, "Mobile data toggled ${if (enabled) "on" else "off"} via reflection")
-            return ToggleResult.SUCCESS
-        } catch (e: Exception) {
-            Log.w(TAG, "Mobile data reflection failed: ${e.message}")
-        }
-
-        // Method 2: Open panel
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val intent = Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+
+            // Step 1: Check current state (API 26+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    val isCurrentlyEnabled = tm.isDataEnabled
+                    if (isCurrentlyEnabled == enabled) {
+                        Log.i(TAG, "Mobile data already ${if (enabled) "on" else "off"}")
+                        return ToggleResult.ALREADY_IN_STATE
+                    }
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Mobile data state check failed: ${e.message}")
                 }
-                context.startActivity(intent)
-                Log.i(TAG, "Opened internet connectivity panel for mobile data")
-                ToggleResult.NEEDS_PANEL
-            } else {
-                val intent = Intent(Settings.ACTION_DATA_ROAMING_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-                ToggleResult.NEEDS_PANEL
             }
+
+            // Step 2: Go straight to QS tile (direct API is unreliable across devices)
+            Log.i(TAG, "Mobile data requires QS fallback")
+            ToggleResult.NEEDS_PANEL
         } catch (e: Exception) {
-            Log.e(TAG, "Mobile data panel error: ${e.message}")
-            ToggleResult.FAILED
+            Log.e(TAG, "Mobile data toggle error: ${e.message}")
+            ToggleResult.NEEDS_PANEL
         }
     }
 
@@ -224,27 +214,9 @@ class DirectToggleController(private val context: Context) {
             Log.w(TAG, "Hotspot reflection failed: ${e.message}")
         }
 
-        // Method 2: Open settings
-        return try {
-            val intent = Intent("android.settings.TETHERING_SETTINGS").apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-            Log.i(TAG, "Opened tethering settings for hotspot")
-            ToggleResult.NEEDS_PANEL
-        } catch (e: Exception) {
-            // Fallback to wireless settings
-            try {
-                val intent = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-                ToggleResult.NEEDS_PANEL
-            } catch (e2: Exception) {
-                Log.e(TAG, "Hotspot settings error: ${e2.message}")
-                ToggleResult.FAILED
-            }
-        }
+        // Method 2: Return NEEDS_PANEL for QS fallback
+        Log.i(TAG, "Hotspot requires QS fallback")
+        return ToggleResult.NEEDS_PANEL
     }
 
     // ==================== AIRPLANE MODE ====================
@@ -277,12 +249,8 @@ class DirectToggleController(private val context: Context) {
                 Log.w(TAG, "Airplane mode direct write failed (no WRITE_SECURE_SETTINGS): ${e.message}")
             }
 
-            // Fallback: open settings
-            val intent = Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-            Log.i(TAG, "Opened airplane mode settings")
+            // Return NEEDS_PANEL for QS fallback (don't open settings)
+            Log.i(TAG, "Airplane mode requires QS fallback")
             ToggleResult.NEEDS_PANEL
         } catch (e: Exception) {
             Log.e(TAG, "Airplane mode error: ${e.message}")
@@ -381,12 +349,8 @@ class DirectToggleController(private val context: Context) {
                 Log.w(TAG, "Location direct write failed: ${e.message}")
             }
 
-            // Fallback: open location settings
-            val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-            Log.i(TAG, "Opened location settings")
+            // Return NEEDS_PANEL for QS fallback (don't open settings)
+            Log.i(TAG, "Location requires QS fallback")
             ToggleResult.NEEDS_PANEL
         } catch (e: Exception) {
             Log.e(TAG, "Location toggle error: ${e.message}")

@@ -127,7 +127,13 @@ object SmartCommandMatcher {
         STOP_SPEAKING,
 
         // Media (additional)
-        PREVIOUS_SONG, TOGGLE_PLAY_PAUSE, STOP_MUSIC
+        PREVIOUS_SONG, TOGGLE_PLAY_PAUSE, STOP_MUSIC,
+
+        // Navigation / Maps
+        OPEN_MAP, NAVIGATE,
+
+        // Generic QS tile toggle (catches any quick setting by name)
+        TOGGLE_QS_TILE
     }
 
     // ==================== EXACT PHRASES (instant HashMap lookup) ====================
@@ -232,6 +238,36 @@ object SmartCommandMatcher {
         for (p in listOf("location off", "gps off", "location band",
                          "turn off location", "disable location"))
             put(p, CommandIntent.LOCATION_OFF)
+
+        // --- NAVIGATION / MAPS ---
+        for (p in listOf("open map", "open maps", "open google maps", "open google map",
+                         "map kholo", "maps kholo", "google map kholo",
+                         "नक्शा खोलो", "मैप खोलो", "गूगल मैप खोलो"))
+            put(p, CommandIntent.OPEN_MAP)
+
+        for (p in listOf("navigate", "navigation", "navigation start",
+                         "rasta batao", "rasta dikhao", "direction batao",
+                         "रास्ता बताओ", "रास्ता दिखाओ", "नेविगेट करो"))
+            put(p, CommandIntent.NAVIGATE)
+
+        // --- GENERIC QS TILES (eye comfort, power saving, etc.) ---
+        for (p in listOf("eye comfort on", "eye comfort off", "blue light on", "blue light off",
+                         "eye care on", "eye care off", "night light on", "night light off"))
+            put(p, CommandIntent.TOGGLE_QS_TILE)
+
+        for (p in listOf("power saving on", "power saving off", "battery saver on",
+                         "battery saver off", "power saver on", "power saver off"))
+            put(p, CommandIntent.TOGGLE_QS_TILE)
+
+        for (p in listOf("screen recording", "start screen recording", "stop screen recording",
+                         "screen record"))
+            put(p, CommandIntent.TOGGLE_QS_TILE)
+
+        for (p in listOf("quick share on", "quick share off", "nearby share on", "nearby share off"))
+            put(p, CommandIntent.TOGGLE_QS_TILE)
+
+        for (p in listOf("otg on", "otg off", "usb on", "usb off"))
+            put(p, CommandIntent.TOGGLE_QS_TILE)
     }
 
     // ==================== KEYWORD DATABASE ====================
@@ -590,7 +626,16 @@ object SmartCommandMatcher {
         IntentKeywords(CommandIntent.STOP_RECORDING, listOf(
             setOf("stop", "end", "finish", "band", "khatam", "rok", "बंद", "खत्म", "रोक"),
             setOf("recording", "record", "video", "रेकॉर्डिंग", "वीडियो")
-        ), requireAll = true)
+        ), requireAll = true),
+
+        // === NAVIGATION / MAPS ===
+        IntentKeywords(CommandIntent.OPEN_MAP, listOf(
+            setOf("map", "maps", "naksha", "नक्शा", "मैप"),
+            setOf("open", "kholo", "chalu", "dikhao", "खोलो", "दिखाओ")
+        ), requireAll = true),
+        IntentKeywords(CommandIntent.NAVIGATE, listOf(
+            setOf("navigate", "navigation", "direction", "directions", "rasta", "route", "नेविगेट", "रास्ता", "दिशा")
+        ), weight = 1.3f)
     )
 
     // ==================== FILLER WORDS ====================
@@ -1203,6 +1248,25 @@ object SmartCommandMatcher {
                 val songName = match.groupValues[1].trim()
                 if (songName.isNotBlank() && songName != "music" && songName != "song") {
                     return MatchResult(CommandIntent.PLAY_SONG, 3.0f, songName)
+                }
+            }
+        }
+
+        // --- NAVIGATE TO [destination] ---
+        val navPatterns = listOf(
+            Regex("^(?:navigate|navigation|directions?)\\s+(?:to\\s+)?(.+)"),
+            Regex("^(?:take\\s+me|le\\s*(?:chal|chalo|jao))\\s+(?:to\\s+)?(.+)"),
+            Regex("^(?:rasta|route|रास्ता|दिशा)\\s+(?:batao|dikhao|बताओ|दिखाओ)\\s+(.+)"),
+            Regex("^(?:how\\s+to\\s+go|kaise\\s+jaye|kaise\\s+jau)\\s+(?:to\\s+)?(.+)"),
+            Regex("^(.+?)\\s+(?:ka\\s+rasta|ka\\s+route|का\\s+रास्ता)$"),
+            Regex("^(?:go\\s+to|chalo|jao)\\s+(.+)")
+        )
+        for ((index, pattern) in navPatterns.withIndex()) {
+            pattern.find(cleaned)?.let { match ->
+                val destination = match.groupValues[1].trim()
+                if (destination.isNotBlank() && destination.length > 1) {
+                    Log.i(TAG, "NAVIGATE pattern $index matched: destination='$destination'")
+                    return MatchResult(CommandIntent.NAVIGATE, 3.5f, destination)
                 }
             }
         }

@@ -197,6 +197,22 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts.language = Locale.US
+            // Check Hindi TTS availability
+            val hindiResult = tts.isLanguageAvailable(Locale("hi", "IN"))
+            hindiTtsAvailable = (hindiResult == TextToSpeech.LANG_AVAILABLE ||
+                                hindiResult == TextToSpeech.LANG_COUNTRY_AVAILABLE ||
+                                hindiResult == TextToSpeech.LANG_COUNTRY_VAR_AVAILABLE)
+
+            // Set audio attributes to NOTIFICATION stream so TTS does NOT steal
+            // audio focus from the SpeechRecognizer mic
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val audioAttributes = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                tts.setAudioAttributes(audioAttributes)
+            }
+
             ttsReady = true
 
             // Track when TTS finishes speaking to resume mic
@@ -206,10 +222,10 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
                 }
                 override fun onDone(utteranceId: String?) {
                     isSpeaking = false
-                    // Small delay before resuming mic to avoid catching tail-end audio
+                    // Resume mic quickly — 150ms is enough to avoid tail-end echo
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         ttsListener?.onTtsFinished()
-                    }, 400)
+                    }, 150)
                 }
                 override fun onError(utteranceId: String?) {
                     isSpeaking = false
@@ -310,17 +326,32 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
     }
     var ttsListener: TtsListener? = null
 
+    // === HINDI LANGUAGE MODE ===
+    // When true, TTS responses are auto-translated to Hindi
+    var isHindiMode: Boolean = false
+    private var hindiTtsAvailable: Boolean = false
+    private val hindiLocale = Locale("hi", "IN")
+
     /**
      * Speak text via TTS.
+     * If Hindi mode is active, auto-translates response and uses Hindi TTS.
      * Notifies listener when TTS starts/finishes so mic can be paused.
      */
     fun speak(text: String) {
         if (ttsReady) {
-            lastSpokenText = text
+            val spokenText: String
+            if (isHindiMode && hindiTtsAvailable) {
+                spokenText = HindiResponseMapper.translate(text)
+                tts.language = hindiLocale
+            } else {
+                spokenText = text
+                tts.language = Locale.US
+            }
+            lastSpokenText = spokenText
             isSpeaking = true
             ttsListener?.onTtsStarted()
             val utteranceId = "neo_${System.currentTimeMillis()}"
-            tts.speak(text, TextToSpeech.QUEUE_ADD, null, utteranceId)
+            tts.speak(spokenText, TextToSpeech.QUEUE_ADD, null, utteranceId)
         }
     }
 
@@ -503,6 +534,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
 
             // Step 1: Wake the screen
             val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            @Suppress("DEPRECATION")
             val wakeLock = powerManager.newWakeLock(
                 android.os.PowerManager.FULL_WAKE_LOCK or
                 android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
@@ -569,6 +601,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
 
             // Step 1: Wake screen
             val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            @Suppress("DEPRECATION")
             val wakeLock = powerManager.newWakeLock(
                 android.os.PowerManager.FULL_WAKE_LOCK or
                 android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or

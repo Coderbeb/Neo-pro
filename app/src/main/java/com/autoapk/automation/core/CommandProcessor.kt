@@ -100,6 +100,12 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     var isOnActiveCall: Boolean = false
         private set
 
+    // === NAVIGATION / MAPS STATE ===
+    private enum class NavigationState { NONE, WAITING_FOR_DESTINATION, CONFIRMING_START }
+    private var navigationState = NavigationState.NONE
+    private var pendingDestination: String = ""
+    private var navigationMode: String = "d" // d=driving, w=walking, b=bicycling, r=transit
+
     // Initialize call state by checking if there's actually an active call
     init {
         // Reset call state on initialization (app start/restart)
@@ -117,8 +123,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 // Announce state change if verification requirements changed
                 if (stateDetector.requiresVerification() && oldState == PhoneStateDetector.PhoneState.NORMAL) {
                     service?.speak("Verification required for commands")
-                } else if (!stateDetector.requiresVerification() && oldState != PhoneStateDetector.PhoneState.NORMAL) {
-                    service?.speak("Normal mode")
                 }
             }
         })
@@ -182,19 +186,30 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
      *   - Maintains context between steps using NavigationContextTracker
      */
     fun process(rawCommand: String): Boolean {
+        // === TRANSLATE HINDI/HINGLISH FIRST ===
+        // Must happen before routing so app-specific handlers also understand Hindi commands
+        val translated = HindiCommandMapper.translate(rawCommand)
+        val preProcessed = InputPreProcessor.preProcess(translated)
+        
+        // Auto-detect Hindi: if translation changed the command, user spoke Hindi/Hinglish
+        val isHindiInput = translated.lowercase().trim() != rawCommand.lowercase().trim()
+        service?.isHindiMode = isHindiInput
+        
+        Log.i("Neo_CMD", "Process: raw='$rawCommand' → translated='$preProcessed' (hindi=$isHindiInput)")
+
         // Try app-specific routing first (WhatsApp, YouTube, Instagram)
         val router = AutomationAccessibilityService.instance?.commandRouter
-        if (router != null && router.route(rawCommand)) {
-            Log.i("Neo_CMD", "Routed to app-specific handler: '$rawCommand'")
+        if (router != null && router.route(preProcessed)) {
+            Log.i("Neo_CMD", "Routed to app-specific handler: '$preProcessed'")
             return true
         }
 
         // Check if this is a chained command (contains commas)
-        if (rawCommand.contains(",")) {
-            return processChainedCommand(rawCommand)
+        if (preProcessed.contains(",")) {
+            return processChainedCommand(preProcessed)
         }
         
-        return processSingleCommand(rawCommand)
+        return processSingleCommand(rawCommand, preProcessed)
     }
     
     /**
@@ -268,7 +283,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
      * Process a single command (non-chained).
      * This is the original process() logic extracted into a separate method.
      */
-    private fun processSingleCommand(rawCommand: String): Boolean {
+    private fun processSingleCommand(rawCommand: String, preTranslated: String? = null): Boolean {
         // === NEO WAKE/SLEEP FILTER ===
         // If sleeping, only wake word "Neo" (or hardware combo) can wake it
         val state = neoState
@@ -286,12 +301,42 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             commandToProcess = rawCommand
         }
 
-        // Translate Hindi/Hinglish to English, then normalize
-        val translated = HindiCommandMapper.translate(commandToProcess)
-        // === TASK 3.2: Pre-process input before matching ===
-        val preProcessed = InputPreProcessor.preProcess(translated)
-        val command = preProcessed.trim().lowercase()
-        Log.i(TAG, "Processing command: '$command' (original: '${rawCommand.trim()}', pre-processed: '$preProcessed')")
+        // Use pre-translated command if available, otherwise translate now
+        val command: String
+        if (preTranslated != null) {
+            command = preTranslated.trim().lowercase()
+        } else {
+            val translated = HindiCommandMapper.translate(commandToProcess)
+            val processed = InputPreProcessor.preProcess(translated)
+            command = processed.trim().lowercase()
+        }
+        Log.i(TAG, "Processing command: '$command' (original: '${rawCommand.trim()}')")
+
+        // === TTS ECHO FILTER — while speaking, only accept stop commands ===
+        val isTtsSpeaking = service?.isSpeaking == true
+        if (isTtsSpeaking) {
+            val stopWords = setOf("stop", "ruko", "ruk", "bas", "cancel", "band", "chup",
+                "रुको", "रुक", "बस", "बंद", "चुप")
+            if (command !in stopWords) {
+                Log.i(TAG, "TTS ECHO FILTER: Ignoring '$command' while TTS is speaking")
+                return false
+            }
+            // Stop word during TTS — stop TTS and reset states
+            Log.i(TAG, "STOP during TTS — stopping speech")
+            service?.stopSpeaking()
+            waitingForUnlockCode = false
+            waitingForContactDisambiguation = false
+            pendingContactMatches = emptyList()
+            waitingForConfirmation = false
+            pendingConfirmationIntent = null
+            pendingConfirmationCommand = ""
+            pendingConfirmationParam = ""
+            navigationState = NavigationState.NONE
+            pendingDestination = ""
+            isOnActiveCall = false
+            service?.speak("Stopped")
+            return true
+        }
 
         // === COMMAND COOLDOWN — reject duplicate within 2 seconds ===
         val now = System.currentTimeMillis()
@@ -304,11 +349,19 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         val stopWords = setOf("stop", "ruko", "ruk", "bas", "cancel", "band", "chup",
             "रुको", "रुक", "बस", "बंद", "चुप")
         if (command in stopWords) {
-            Log.i(TAG, "STOP_ALL triggered — clearing all pending states")
+            Log.i(TAG, "STOP_ALL triggered — clearing ALL pending states")
+            // Stop TTS immediately
             service?.stopSpeaking()
+            // Reset ALL pending states → return to idle
             waitingForUnlockCode = false
             waitingForContactDisambiguation = false
             pendingContactMatches = emptyList()
+            waitingForConfirmation = false
+            pendingConfirmationIntent = null
+            pendingConfirmationCommand = ""
+            pendingConfirmationParam = ""
+            navigationState = NavigationState.NONE
+            pendingDestination = ""
             isOnActiveCall = false
             service?.speak("Stopped")
             lastProcessedCommand = command
@@ -344,6 +397,13 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             lastProcessedCommand = command
             lastProcessedTime = timestamp
             return handleContactDisambiguation(command)
+        }
+
+        // === NAVIGATION STATE MACHINE ===
+        if (navigationState != NavigationState.NONE) {
+            lastProcessedCommand = command
+            lastProcessedTime = timestamp
+            return handleNavigationState(command)
         }
 
         // === CONFIRMATION STATE (confidence levels) ===
@@ -710,44 +770,52 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             SmartCommandMatcher.CommandIntent.UNMUTE -> adjustVolume(AudioManager.ADJUST_UNMUTE)
 
             // === CONNECTIVITY - WiFi ===
-            SmartCommandMatcher.CommandIntent.WIFI_ON -> handleToggle("WiFi", directToggleController.setWifi(true))
-            SmartCommandMatcher.CommandIntent.WIFI_OFF -> handleToggle("WiFi", directToggleController.setWifi(false))
+            SmartCommandMatcher.CommandIntent.WIFI_ON -> handleToggle("WiFi", directToggleController.setWifi(true), true, listOf("Wi-Fi", "WiFi", "Wi‑Fi", "WLAN", "Internet"))
+            SmartCommandMatcher.CommandIntent.WIFI_OFF -> handleToggle("WiFi", directToggleController.setWifi(false), false, listOf("Wi-Fi", "WiFi", "Wi‑Fi", "WLAN", "Internet"))
 
             // === CONNECTIVITY - Bluetooth ===
-            SmartCommandMatcher.CommandIntent.BLUETOOTH_ON -> handleToggle("Bluetooth", directToggleController.setBluetooth(true))
-            SmartCommandMatcher.CommandIntent.BLUETOOTH_OFF -> handleToggle("Bluetooth", directToggleController.setBluetooth(false))
+            SmartCommandMatcher.CommandIntent.BLUETOOTH_ON -> handleToggle("Bluetooth", directToggleController.setBluetooth(true), true, listOf("Bluetooth", "BT"))
+            SmartCommandMatcher.CommandIntent.BLUETOOTH_OFF -> handleToggle("Bluetooth", directToggleController.setBluetooth(false), false, listOf("Bluetooth", "BT"))
 
             // === CONNECTIVITY - Mobile Data ===
-            SmartCommandMatcher.CommandIntent.MOBILE_DATA_ON -> handleToggle("Mobile data", directToggleController.setMobileData(true))
-            SmartCommandMatcher.CommandIntent.MOBILE_DATA_OFF -> handleToggle("Mobile data", directToggleController.setMobileData(false))
+            SmartCommandMatcher.CommandIntent.MOBILE_DATA_ON -> handleToggle("Mobile data", directToggleController.setMobileData(true), true, listOf("Mobile data", "Mobile Data", "Data", "Mobile Data.", "Cellular data", "Cellular", "Internet", "Data connection", "SIM"))
+            SmartCommandMatcher.CommandIntent.MOBILE_DATA_OFF -> handleToggle("Mobile data", directToggleController.setMobileData(false), false, listOf("Mobile data", "Mobile Data", "Data", "Mobile Data.", "Cellular data", "Cellular", "Internet", "Data connection", "SIM"))
 
             // === DND ===
             SmartCommandMatcher.CommandIntent.DND_ON -> handleToggle("Do not disturb", directToggleController.setDND(true))
             SmartCommandMatcher.CommandIntent.DND_OFF -> handleToggle("Do not disturb", directToggleController.setDND(false))
 
             // === HOTSPOT ===
-            SmartCommandMatcher.CommandIntent.HOTSPOT_ON -> handleToggle("Hotspot", directToggleController.setHotspot(true))
-            SmartCommandMatcher.CommandIntent.HOTSPOT_OFF -> handleToggle("Hotspot", directToggleController.setHotspot(false))
+            SmartCommandMatcher.CommandIntent.HOTSPOT_ON -> handleToggle("Hotspot", directToggleController.setHotspot(true), true, listOf("Hotspot", "Wi-Fi hotspot", "Personal Hotspot", "Tethering"))
+            SmartCommandMatcher.CommandIntent.HOTSPOT_OFF -> handleToggle("Hotspot", directToggleController.setHotspot(false), false, listOf("Hotspot", "Wi-Fi hotspot", "Personal Hotspot", "Tethering"))
 
             // === AIRPLANE MODE ===
-            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_ON -> handleToggle("Airplane mode", directToggleController.setAirplaneMode(true))
-            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_OFF -> handleToggle("Airplane mode", directToggleController.setAirplaneMode(false))
+            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_ON -> handleToggle("Airplane mode", directToggleController.setAirplaneMode(true), true, listOf("Airplane mode", "Aeroplane mode", "Flight mode", "Airplane", "Flight"))
+            SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_OFF -> handleToggle("Airplane mode", directToggleController.setAirplaneMode(false), false, listOf("Airplane mode", "Aeroplane mode", "Flight mode", "Airplane", "Flight"))
 
             // === DARK MODE ===
-            SmartCommandMatcher.CommandIntent.DARK_MODE_ON -> handleToggle("Dark mode", directToggleController.setDarkMode(true))
-            SmartCommandMatcher.CommandIntent.DARK_MODE_OFF -> handleToggle("Dark mode", directToggleController.setDarkMode(false))
+            SmartCommandMatcher.CommandIntent.DARK_MODE_ON -> handleToggle("Dark mode", directToggleController.setDarkMode(true), true, listOf("Dark theme", "Dark mode", "Night mode", "Dark"))
+            SmartCommandMatcher.CommandIntent.DARK_MODE_OFF -> handleToggle("Dark mode", directToggleController.setDarkMode(false), false, listOf("Dark theme", "Dark mode", "Night mode", "Dark"))
 
             // === LOCATION ===
-            SmartCommandMatcher.CommandIntent.LOCATION_ON -> handleToggle("Location", directToggleController.setLocation(true))
-            SmartCommandMatcher.CommandIntent.LOCATION_OFF -> handleToggle("Location", directToggleController.setLocation(false))
+            SmartCommandMatcher.CommandIntent.LOCATION_ON -> handleToggle("Location", directToggleController.setLocation(true), true, listOf("Location", "GPS"))
+            SmartCommandMatcher.CommandIntent.LOCATION_OFF -> handleToggle("Location", directToggleController.setLocation(false), false, listOf("Location", "GPS"))
 
-            // === AUTO ROTATE (new intents) ===
-            SmartCommandMatcher.CommandIntent.AUTO_ROTATE_ON -> handleToggle("Auto rotate", directToggleController.setAutoRotate(true))
-            SmartCommandMatcher.CommandIntent.AUTO_ROTATE_OFF -> handleToggle("Auto rotate", directToggleController.setAutoRotate(false))
+            // === AUTO ROTATE ===
+            SmartCommandMatcher.CommandIntent.AUTO_ROTATE_ON -> handleToggle("Auto rotate", directToggleController.setAutoRotate(true), true, listOf("Auto-rotate", "Auto rotate", "Rotation"))
+            SmartCommandMatcher.CommandIntent.AUTO_ROTATE_OFF -> handleToggle("Auto rotate", directToggleController.setAutoRotate(false), false, listOf("Auto-rotate", "Auto rotate", "Rotation"))
 
             // === FLASHLIGHT (via CameraManager — instant, no QS needed) ===
             SmartCommandMatcher.CommandIntent.FLASHLIGHT_ON -> flashlightController.turnOn()
             SmartCommandMatcher.CommandIntent.FLASHLIGHT_OFF -> flashlightController.turnOff()
+
+            // === GENERIC QS TILE TOGGLE ===
+            SmartCommandMatcher.CommandIntent.TOGGLE_QS_TILE -> {
+                val tileName = extractQsTileName(command)
+                val tileLabels = getQsTileLabels(tileName)
+                val isOn = !command.contains("off") && !command.contains("band") && !command.contains("बंद")
+                toggleViaQuickSettings(tileName, isOn, tileLabels)
+            }
 
             // === APP LAUNCHING ===
             SmartCommandMatcher.CommandIntent.OPEN_APP -> {
@@ -952,17 +1020,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
 
             // === DAILY LIFE ===
             SmartCommandMatcher.CommandIntent.OPEN_WEATHER -> openWeather()
-            SmartCommandMatcher.CommandIntent.TAKE_PHOTO -> takePhoto()
-            SmartCommandMatcher.CommandIntent.READ_CLIPBOARD -> readClipboard()
-            SmartCommandMatcher.CommandIntent.COPY -> {
-                service?.speak("Copied"); true
-            }
-
-            // === EMERGENCY ===
-            SmartCommandMatcher.CommandIntent.EMERGENCY -> emergencyCall()
-            SmartCommandMatcher.CommandIntent.SEND_LOCATION -> sendLocation()
-
-            // === CAMERA ===
             SmartCommandMatcher.CommandIntent.TAKE_PHOTO -> {
                 // Open camera app and click shutter via accessibility
                 val cameraOpened = appNavigator.openApp("camera")
@@ -980,6 +1037,22 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 }
                 true
             }
+            SmartCommandMatcher.CommandIntent.READ_CLIPBOARD -> readClipboard()
+            SmartCommandMatcher.CommandIntent.COPY -> {
+                // Copy selected text via the focused node's ACTION_COPY
+                val svc = service ?: return notConnected()
+                val focusedNode = svc.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+                val copied = focusedNode?.performAction(
+                    android.view.accessibility.AccessibilityNodeInfo.ACTION_COPY
+                ) ?: false
+                if (copied) svc.speak("Copied to clipboard")
+                else svc.speak("Select text first, then say copy")
+                true
+            }
+
+            // === EMERGENCY ===
+            SmartCommandMatcher.CommandIntent.EMERGENCY -> emergencyCall()
+            SmartCommandMatcher.CommandIntent.SEND_LOCATION -> sendLocation()
             SmartCommandMatcher.CommandIntent.RECORD_VIDEO -> {
                 // If already in camera app, switch to video mode and record
                 val currentApp = service?.getCurrentAppName()?.lowercase() ?: ""
@@ -1009,7 +1082,307 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 service?.findAndClickSmart("record") ?:
                 service?.findAndClickSmart("shutter") ?: false
             }
+
+            // === NAVIGATION / MAPS ===
+            SmartCommandMatcher.CommandIntent.OPEN_MAP -> {
+                openGoogleMaps()
+                navigationState = NavigationState.WAITING_FOR_DESTINATION
+                service?.speak("Where do you want to go?")
+                true
+            }
+            SmartCommandMatcher.CommandIntent.NAVIGATE -> {
+                if (param.isNotBlank()) {
+                    // Direct: "navigate to Delhi" — search first then ask to start
+                    pendingDestination = param
+                    searchInGoogleMaps(param)
+                    navigationState = NavigationState.CONFIRMING_START
+                    service?.speak("Found $param. Should I start navigation?")
+                } else {
+                    // Just "navigate" — ask for destination
+                    openGoogleMaps()
+                    navigationState = NavigationState.WAITING_FOR_DESTINATION
+                    service?.speak("Where do you want to go?")
+                }
+                true
+            }
         }
+    }
+
+    // ==================== GOOGLE MAPS NAVIGATION ====================
+
+    /**
+     * Handle navigation state machine.
+     * Called when navigationState != NONE — intercepts all commands.
+     */
+    private fun handleNavigationState(command: String): Boolean {
+        val cancelWords = setOf("cancel", "no", "nahi", "nah", "na", "mat", "chhodo", "band",
+            "रद्द", "नहीं", "मत", "छोड़ो", "बंद", "stop", "ruk", "back")
+        val yesWords = setOf("yes", "haan", "ha", "han", "ok", "okay", "sure", "theek", "sahi",
+            "right", "chalo", "shuru", "start",
+            "हां", "ठीक", "सही", "चलो", "शुरू")
+        val walkWords = setOf("walk", "walking", "paidal", "पैदल", "on foot")
+        val transitWords = setOf("bus", "metro", "train", "transit", "public transport",
+            "बस", "मेट्रो", "ट्रेन")
+        val bikeWords = setOf("bike", "cycle", "bicycle", "cycling", "साइकिल")
+
+        when (navigationState) {
+            NavigationState.WAITING_FOR_DESTINATION -> {
+                // User is supposed to say the destination
+                if (cancelWords.any { command.contains(it) }) {
+                    navigationState = NavigationState.NONE
+                    pendingDestination = ""
+                    service?.speak("Navigation cancelled")
+                    return true
+                }
+
+                // Anything else is treated as the destination
+                pendingDestination = command.trim()
+                searchInGoogleMaps(pendingDestination)
+                navigationState = NavigationState.CONFIRMING_START
+                service?.speak("Found $pendingDestination. Should I start navigation?")
+                return true
+            }
+
+            NavigationState.CONFIRMING_START -> {
+                // User should say yes/no or a travel mode
+                if (cancelWords.any { command.contains(it) }) {
+                    navigationState = NavigationState.NONE
+                    pendingDestination = ""
+                    service?.speak("Navigation cancelled")
+                    return true
+                }
+
+                // Check for travel mode before starting
+                when {
+                    walkWords.any { command.contains(it) } -> {
+                        navigationMode = "w"
+                        startNavigation(pendingDestination, "w")
+                        service?.speak("Starting walking navigation to $pendingDestination")
+                        navigationState = NavigationState.NONE
+                        return true
+                    }
+                    transitWords.any { command.contains(it) } -> {
+                        navigationMode = "r"
+                        startNavigation(pendingDestination, "r")
+                        service?.speak("Starting transit navigation to $pendingDestination")
+                        navigationState = NavigationState.NONE
+                        return true
+                    }
+                    bikeWords.any { command.contains(it) } -> {
+                        navigationMode = "b"
+                        startNavigation(pendingDestination, "b")
+                        service?.speak("Starting cycling navigation to $pendingDestination")
+                        navigationState = NavigationState.NONE
+                        return true
+                    }
+                    yesWords.any { command.contains(it) } -> {
+                        startNavigation(pendingDestination, navigationMode)
+                        service?.speak("Starting navigation to $pendingDestination")
+                        navigationState = NavigationState.NONE
+                        return true
+                    }
+                    else -> {
+                        service?.speak("Say yes to start, or walking, transit, or cycling for a different mode. Say cancel to stop.")
+                        return true
+                    }
+                }
+            }
+
+            NavigationState.NONE -> return false // Should not reach here
+        }
+    }
+
+    /**
+     * Open Google Maps app.
+     */
+    private fun openGoogleMaps() {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setPackage("com.google.android.apps.maps")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            // Fallback: try launching by package name
+            try {
+                val launchIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.maps")
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                } else {
+                    service?.speak("Google Maps is not installed")
+                }
+            } catch (e2: Exception) {
+                service?.speak("Could not open Google Maps")
+            }
+        }
+    }
+
+    /**
+     * Search for a location in Google Maps using the official geo: URI.
+     * Opens Maps and shows the location on screen.
+     */
+    private fun searchInGoogleMaps(destination: String) {
+        try {
+            val encodedDest = android.net.Uri.encode(destination)
+            val geoUri = android.net.Uri.parse("geo:0,0?q=$encodedDest")
+            val intent = Intent(Intent.ACTION_VIEW, geoUri).apply {
+                setPackage("com.google.android.apps.maps")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            Log.i(TAG, "Google Maps search: $destination")
+        } catch (e: Exception) {
+            Log.e(TAG, "Maps search error: ${e.message}")
+            service?.speak("Could not search in Google Maps")
+        }
+    }
+
+    /**
+     * Start turn-by-turn navigation using Google Maps navigation intent.
+     * @param destination The place to navigate to
+     * @param mode d=driving, w=walking, b=bicycling, r=transit
+     */
+    private fun startNavigation(destination: String, mode: String = "d") {
+        try {
+            val encodedDest = android.net.Uri.encode(destination)
+            val navUri = android.net.Uri.parse("google.navigation:q=$encodedDest&mode=$mode")
+            val intent = Intent(Intent.ACTION_VIEW, navUri).apply {
+                setPackage("com.google.android.apps.maps")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            Log.i(TAG, "Navigation started: $destination (mode=$mode)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Navigation error: ${e.message}")
+            service?.speak("Could not start navigation")
+        }
+    }
+
+
+
+    // ==================== QUICK SETTINGS TOGGLE ====================
+
+    /**
+     * Toggle a setting by opening Quick Settings and clicking the tile.
+     * Works for WiFi, Mobile Data, and any other QS tile.
+     *
+     * @param name Display name for feedback (e.g., "WiFi")
+     * @param enabled Whether we want to turn it on or off (used for feedback only)
+     * @param tileLabels List of possible tile labels to search for (fuzzy matched)
+     */
+    private fun toggleViaQuickSettings(name: String, enabled: Boolean, tileLabels: List<String>): Boolean {
+        val svc = service ?: return notConnected()
+
+        // Step 1: Open Quick Settings
+        val opened = svc.openQuickSettings()
+        if (!opened) {
+            svc.speak("Could not open quick settings")
+            return false
+        }
+
+        // Step 2: Wait for QS to load, then find and click the tile
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        handler.postDelayed({
+            var clicked = false
+            // Try each possible tile label until one matches
+            for (label in tileLabels) {
+                if (svc.findAndClickSmart(label)) {
+                    clicked = true
+                    Log.i(TAG, "QS Toggle: Clicked '$label' tile for $name")
+                    break
+                }
+            }
+
+            if (clicked) {
+                svc.speak("$name ${if (enabled) "turned on" else "turned off"}")
+            } else {
+                svc.speak("Could not find $name tile in quick settings")
+            }
+
+            // Step 3: Dismiss QS panel — two goBack() to return to original app/screen
+            // 1st goBack: QS tiles → notification shade
+            // 2nd goBack: notification shade → original screen
+            handler.postDelayed({
+                svc.goBack()
+                handler.postDelayed({
+                    svc.goBack()
+                }, 500)
+            }, 500)
+        }, 800) // Wait 800ms for QS panel to fully load
+
+        return true
+    }
+
+    /**
+     * Extract the QS tile feature name from the command.
+     * Strips on/off/start/stop and common filler words.
+     */
+    private fun extractQsTileName(command: String): String {
+        return command
+            .replace(Regex("\\b(turn|switch|toggle|enable|disable|start|stop|chalu|band|karo|on|off)\\b"), "")
+            .replace(Regex("\\b(करो|चालू|बंद)"), "")
+            .trim()
+            .ifBlank { command }
+    }
+
+    /**
+     * Map a feature name to possible QS tile labels across different phone brands.
+     * Returns multiple possible labels for fuzzy matching.
+     * If the feature is unknown, returns the name itself as a fallback.
+     */
+    private fun getQsTileLabels(featureName: String): List<String> {
+        val name = featureName.lowercase().trim()
+
+        // Comprehensive mapping: feature name → possible QS tile labels
+        val tileMap = mapOf(
+            // Eye comfort / Blue light
+            "eye comfort" to listOf("Eye comfort shield", "Eye Comfort Shield", "Eye comfort", "Blue light filter", "Night Light", "Night light", "Eye Care", "Reading mode"),
+            "blue light" to listOf("Blue light filter", "Blue light", "Night Light", "Eye comfort shield", "Eye Comfort Shield"),
+            "eye care" to listOf("Eye Care", "Eye comfort shield", "Blue light filter", "Night Light"),
+            "night light" to listOf("Night Light", "Night light", "Eye comfort shield", "Blue light filter"),
+
+            // Power saving
+            "power saving" to listOf("Power saving", "Battery Saver", "Battery saver", "Power Saving", "Power saver", "Ultra battery saver"),
+            "battery saver" to listOf("Battery Saver", "Battery saver", "Power saving", "Power Saving"),
+            "power saver" to listOf("Power saver", "Power saving", "Battery Saver", "Battery saver"),
+
+            // Screen recording
+            "screen recording" to listOf("Screen recorder", "Screen recording", "Screen record", "Record screen"),
+            "screen record" to listOf("Screen recorder", "Screen recording", "Screen record"),
+
+            // Quick share / Nearby share
+            "quick share" to listOf("Quick Share", "Quick share", "Nearby Share", "Nearby share"),
+            "nearby share" to listOf("Nearby Share", "Nearby share", "Quick Share", "Quick share"),
+
+            // OTG / USB
+            "otg" to listOf("OTG", "USB OTG", "OTG connection"),
+            "usb" to listOf("OTG", "USB OTG", "USB"),
+
+            // Extra tiles people might have
+            "nfc" to listOf("NFC", "Nfc"),
+            "sync" to listOf("Sync", "Auto sync", "Auto-sync"),
+            "cast" to listOf("Cast", "Screen cast", "Smart View", "Wireless display"),
+            "focus" to listOf("Focus mode", "Focus"),
+            "extra dim" to listOf("Extra dim", "Extra Dim"),
+            "bedtime" to listOf("Bedtime mode", "Bedtime"),
+            "ultra saving" to listOf("Ultra battery saver", "Ultra power saving"),
+            "private dns" to listOf("Private DNS", "Private dns"),
+            "vpn" to listOf("VPN", "Vpn"),
+            "dolby" to listOf("Dolby Atmos", "Dolby", "dolby atmos"),
+            "always display" to listOf("Always On Display", "AOD", "Always on display"),
+            "aod" to listOf("Always On Display", "AOD", "Always on display")
+        )
+
+        // Try to find a matching key
+        for ((key, labels) in tileMap) {
+            if (name.contains(key)) {
+                return labels
+            }
+        }
+
+        // Fallback: use the feature name itself (fuzzy matching will try it)
+        return listOf(featureName, featureName.replaceFirstChar { it.uppercase() })
     }
 
     // ==================== SYSTEM ACTIONS ====================
@@ -1028,7 +1401,21 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     /**
      * Handle toggle result from DirectToggleController with appropriate voice feedback.
      */
-    private fun handleToggle(name: String, result: DirectToggleController.ToggleResult): Boolean {
+    /**
+     * Handle toggle result from DirectToggleController with appropriate voice feedback.
+     * If QS tile labels are provided and direct API fails, falls back to Quick Settings.
+     *
+     * @param name Display name for feedback
+     * @param result Result from DirectToggleController
+     * @param enabled Whether turning on or off (used for QS fallback feedback)
+     * @param qsTileLabels Optional QS tile labels for fallback. If null, no QS fallback.
+     */
+    private fun handleToggle(
+        name: String,
+        result: DirectToggleController.ToggleResult,
+        enabled: Boolean = true,
+        qsTileLabels: List<String>? = null
+    ): Boolean {
         return when (result) {
             DirectToggleController.ToggleResult.SUCCESS -> {
                 service?.speak("$name toggled")
@@ -1038,17 +1425,20 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 service?.speak("$name is already in the desired state")
                 true
             }
-            DirectToggleController.ToggleResult.NEEDS_PANEL -> {
-                service?.speak("Opening $name settings")
-                true // Panel was opened, user needs to manually toggle
-            }
             DirectToggleController.ToggleResult.NEEDS_PERMISSION -> {
                 service?.speak("$name needs permission. Opening settings.")
                 true
             }
+            DirectToggleController.ToggleResult.NEEDS_PANEL,
             DirectToggleController.ToggleResult.FAILED -> {
-                service?.speak("Could not toggle $name")
-                false
+                if (qsTileLabels != null) {
+                    // Direct API didn't work → fall back to Quick Settings tile
+                    Log.i(TAG, "$name direct API returned ${result.name} → QS tile fallback")
+                    toggleViaQuickSettings(name, enabled, qsTileLabels)
+                } else {
+                    service?.speak("Could not toggle $name")
+                    false
+                }
             }
         }
     }
@@ -1102,6 +1492,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
 
     private fun toggleSpeaker(): Boolean {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        @Suppress("DEPRECATION")
         val newState = !audioManager.isSpeakerphoneOn
         callManager.toggleSpeaker(newState)
         return true
@@ -1185,7 +1576,11 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100) ?: 100
         val percentage = (level * 100) / scale
-        service?.speak("Battery level is $percentage percent")
+        val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                         status == android.os.BatteryManager.BATTERY_STATUS_FULL
+        val chargingText = if (isCharging) " and charging" else ""
+        service?.speak("Battery level is $percentage percent$chargingText")
         return true
     }
 
@@ -1545,21 +1940,40 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     // ==================== PHASE 2: MESSAGING ====================
 
     private fun sendSms(body: String): Boolean {
-        // Parse: "Mom hello how are you" → contact = "Mom", message = "hello how are you"
-        val parts = body.split(" ", limit = 2)
-        val contactQuery = parts.getOrElse(0) { "" }
-        val message = parts.getOrElse(1) { "" }
+        // Smart parsing: try matching progressively longer prefixes against contacts
+        // Handles multi-word names like "Mahto Krishna hello" → contact="Mahto Krishna", message="hello"
+        val words = body.split(" ")
+        var contactQuery = ""
+        var message = ""
+        var bestMatch: ContactRegistry.ContactMatch? = null
+
+        if (contactRegistry.needsScan()) contactRegistry.scanContacts()
+
+        // Try longest prefix first for best contact match
+        for (i in (words.size - 1).coerceAtMost(3) downTo 0) {
+            val candidateName = words.subList(0, i + 1).joinToString(" ")
+            val match = contactRegistry.findContact(candidateName)
+            if (match != null && match.score >= 50) {
+                contactQuery = candidateName
+                bestMatch = match
+                message = words.subList(i + 1, words.size).joinToString(" ")
+                break
+            }
+        }
+
+        // Fallback to first word as contact
+        if (contactQuery.isBlank()) {
+            contactQuery = words.getOrElse(0) { "" }
+            message = words.drop(1).joinToString(" ")
+            bestMatch = contactRegistry.findContact(contactQuery)
+        }
 
         if (contactQuery.isBlank()) {
             service?.speak("Who should I send the message to?")
             return false
         }
 
-        // Look up contact number
-        if (contactRegistry.needsScan()) contactRegistry.scanContacts()
-        val match = contactRegistry.findContact(contactQuery)
-        val number = match?.number
-
+        val number = bestMatch?.number
         if (number != null) {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
                 data = android.net.Uri.parse("smsto:$number")
@@ -1567,7 +1981,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
-            service?.speak("Sending SMS to ${match.name}: $message")
+            service?.speak("Sending SMS to ${bestMatch.name}: $message")
             return true
         } else {
             service?.speak("Contact $contactQuery not found")
@@ -1576,21 +1990,41 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     }
 
     private fun sendWhatsApp(body: String): Boolean {
-        // Parse: "Rahul hi how are you" → contact = "Rahul", message = "hi how are you"
-        val parts = body.split(" ", limit = 2)
-        val contactQuery = parts.getOrElse(0) { "" }
-        val message = parts.getOrElse(1) { "" }
+        // Smart parsing: try matching progressively longer prefixes against contacts
+        // Handles multi-word names like "Mahto Krishna hello" → contact="Mahto Krishna", message="hello"
+        val words = body.split(" ")
+        var contactQuery = ""
+        var message = ""
+        var bestMatch: ContactRegistry.ContactMatch? = null
+
+        if (contactRegistry.needsScan()) contactRegistry.scanContacts()
+
+        // Try longest prefix first for best contact match
+        for (i in (words.size - 1).coerceAtMost(3) downTo 0) {
+            val candidateName = words.subList(0, i + 1).joinToString(" ")
+            val match = contactRegistry.findContact(candidateName)
+            if (match != null && match.score >= 50) {
+                contactQuery = candidateName
+                bestMatch = match
+                message = words.subList(i + 1, words.size).joinToString(" ")
+                break
+            }
+        }
+
+        // Fallback to first word as contact
+        if (contactQuery.isBlank()) {
+            contactQuery = words.getOrElse(0) { "" }
+            message = words.drop(1).joinToString(" ")
+            bestMatch = contactRegistry.findContact(contactQuery)
+        }
 
         if (contactQuery.isBlank()) {
             service?.speak("Who should I send the WhatsApp to?")
             return false
         }
 
-        if (contactRegistry.needsScan()) contactRegistry.scanContacts()
-        val match = contactRegistry.findContact(contactQuery)
-
-        if (match != null) {
-            var number = match.number.replace("+", "").replace(" ", "")
+        if (bestMatch != null) {
+            var number = bestMatch.number.replace("+", "").replace(" ", "")
             if (!number.startsWith("91") && number.length == 10) number = "91$number"
 
             val whatsappUri = android.net.Uri.parse(
@@ -1600,7 +2034,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)
-            service?.speak("Opening WhatsApp chat with ${match.name}")
+            service?.speak("Opening WhatsApp chat with ${bestMatch.name}")
             return true
         } else {
             service?.speak("Contact $contactQuery not found")
@@ -1804,7 +2238,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         // Try YouTube Music or Spotify or default music search
         val intent = Intent(android.provider.MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
             putExtra(android.provider.MediaStore.EXTRA_MEDIA_FOCUS,
-                android.provider.MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE)
+                "vnd.android.cursor.item/audio")
             putExtra(android.app.SearchManager.QUERY, songName)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
@@ -1854,8 +2288,13 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 }
                 
                 val smsMessage = "EMERGENCY! I need help. $locationText. Sent via Neo."
-                val smsManager = android.telephony.SmsManager.getDefault()
-                smsManager.sendTextMessage(emergencyContact, null, smsMessage, null, null)
+                val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    context.getSystemService(android.telephony.SmsManager::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    android.telephony.SmsManager.getDefault()
+                }
+                smsManager?.sendTextMessage(emergencyContact, null, smsMessage, null, null)
                 
                 Log.i(TAG, "Emergency SMS sent to $emergencyContact with location")
                 service?.speak("Emergency SMS sent to your emergency contact")
@@ -1882,8 +2321,13 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 // If emergency contact is set, send SMS directly
                 if (emergencyContact.isNotBlank()) {
                     try {
-                        val smsManager = android.telephony.SmsManager.getDefault()
-                        smsManager.sendTextMessage(emergencyContact, null, "My location: $mapUrl", null, null)
+                        val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            context.getSystemService(android.telephony.SmsManager::class.java)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            android.telephony.SmsManager.getDefault()
+                        }
+                        smsManager?.sendTextMessage(emergencyContact, null, "My location: $mapUrl", null, null)
                         service?.speak("Location sent to your emergency contact")
                         return true
                     } catch (_: Exception) {
@@ -2035,8 +2479,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         val normalized = spokenCode.trim().replace(" ", "").lowercase()
 
         if (normalized == unlockCode) {
-            // ✅ Code matches — unlock!
-            waitingForUnlockCode = false
             // ✅ Code matches — unlock!
             waitingForUnlockCode = false
             unlockAttemptsRemaining = 3

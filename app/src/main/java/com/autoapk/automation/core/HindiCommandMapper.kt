@@ -197,6 +197,24 @@ object HindiCommandMapper {
         "youtube par khojo" to "search youtube",
         "youtube par search karo" to "search youtube",
 
+        // === GOOGLE MAPS NAVIGATION ===
+        "नेविगेट करो" to "navigate",
+        "navigate karo" to "navigate",
+        "रास्ता बताओ" to "navigate to",
+        "rasta batao" to "navigate to",
+        "रास्ता दिखाओ" to "navigate to",
+        "rasta dikhao" to "navigate to",
+        "ले चलो" to "take me to",
+        "le chalo" to "take me to",
+        "कैसे जाएं" to "how to go to",
+        "kaise jaye" to "how to go to",
+        "मैप खोलो" to "open map",
+        "map kholo" to "open map",
+        "नक्शा खोलो" to "open map",
+        "naksha kholo" to "open map",
+        "गूगल मैप खोलो" to "open google maps",
+        "google map kholo" to "open google maps",
+
         // === CLEAR NOTIFICATIONS ===
         "नोटिफिकेशन हटाओ" to "clear notification",
         "notification hatao" to "clear notification",
