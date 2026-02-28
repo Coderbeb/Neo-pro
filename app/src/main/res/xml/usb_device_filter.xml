@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Match any USB Video Class (UVC) camera device -->
+    <!-- USB class 0x0E = Video, subclass 0x01 = Video Control -->
+    <usb-device class="0x0E" subclass="0x01" />
+    <!-- Also match class 0xEF (Misc) subclass 0x02 protocol 0x01 = IAD (Multi-interface) -->
+    <usb-device class="0xEF" subclass="0x02" protocol="0x01" />
+</resources>

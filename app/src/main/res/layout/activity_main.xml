@@ -463,6 +463,27 @@
                     android:checked="false"
                     android:layout_marginTop="4dp" />
 
+                <!-- Vision: Use Built-in Camera Toggle -->
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switchBuiltInCamera"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📷  Use Built-in Camera (Vision)"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:checked="false"
+                    android:layout_marginTop="4dp" />
+
+                <TextView
+                    android:id="@+id/tvBuiltInCameraHint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Enable to use phone camera instead of USB OTG camera for vision features"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:layout_marginStart="48dp"
+                    android:layout_marginTop="2dp" />
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

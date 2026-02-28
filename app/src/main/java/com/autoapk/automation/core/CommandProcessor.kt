@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.telecom.TelecomManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.autoapk.automation.vision.VisionAssistantOrchestrator
 
 /**
  * Maps voice/command strings to actual system actions.
@@ -49,6 +50,20 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     private val callManager = CallManager(context)
     private val flashlightController = FlashlightController(context)
     private val directToggleController = DirectToggleController(context)
+
+    // Vision Assistance Module — lazily initialized on first vision command
+    private var visionOrchestrator: VisionAssistantOrchestrator? = null
+    private fun getVision(): VisionAssistantOrchestrator {
+        if (visionOrchestrator == null) {
+            visionOrchestrator = VisionAssistantOrchestrator(
+                context = context,
+                tts = { text -> service?.speak(text) },
+                isTtsSpeaking = { service?.isSpeaking == true },
+                phoneStateDetector = stateDetector
+            )
+        }
+        return visionOrchestrator!!
+    }
 
 
     private val service: AutomationAccessibilityService?
@@ -1103,6 +1118,89 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                     navigationState = NavigationState.WAITING_FOR_DESTINATION
                     service?.speak("Where do you want to go?")
                 }
+                true
+            }
+
+            // === VISION ASSISTANCE ===
+            SmartCommandMatcher.CommandIntent.DESCRIBE_SCENE -> {
+                getVision().describeScene(if (param.isNotBlank()) param else null)
+                true
+            }
+            SmartCommandMatcher.CommandIntent.WHO_IS_THERE -> {
+                getVision().whoIsThere()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.READ_TEXT_VISION -> {
+                getVision().readText()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.START_AUTO_DESCRIBE -> {
+                // Check if user specified interval: "describe every 5 seconds"
+                val intervalMatch = Regex("(\\d+)\\s*(?:second|sec)").find(command)
+                val interval = intervalMatch?.groupValues?.get(1)?.toIntOrNull()
+                getVision().startAutoDescribe(interval)
+                true
+            }
+            SmartCommandMatcher.CommandIntent.STOP_AUTO_DESCRIBE -> {
+                getVision().stopAutoDescribe()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.REMEMBER_FACE -> {
+                // Extract name: "remember this face as Rajesh" → "Rajesh"
+                val name = command.replace(Regex(".*(?:face as|face|chehra)\\s*"), "").trim()
+                    .ifBlank { param }
+                if (name.isNotBlank()) {
+                    getVision().rememberFace(name)
+                } else {
+                    service?.speak("Please say the name. For example: remember this face as Rajesh.")
+                }
+                true
+            }
+            SmartCommandMatcher.CommandIntent.FORGET_FACE -> {
+                // Extract name: "forget Rajesh's face" → "Rajesh"
+                val name = command.replace(Regex(".*(?:forget|delete|remove|bhool|hata)\\s*"), "")
+                    .replace(Regex("'?s?\\s*(?:face|chehra).*"), "").trim()
+                    .ifBlank { param }
+                if (name.isNotBlank()) {
+                    getVision().forgetFace(name)
+                } else {
+                    service?.speak("Please say the name of the person to forget.")
+                }
+                true
+            }
+            SmartCommandMatcher.CommandIntent.LIST_KNOWN_FACES -> {
+                getVision().listKnownFaces()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.WHAT_CHANGED -> {
+                getVision().whatChanged()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.IS_PATH_SAFE -> {
+                getVision().isPathSafe()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.FIND_OBJECT -> {
+                // Extract object: "where is my bag" → "bag"
+                val obj = command.replace(Regex(".*(?:where is|find|locate|kahan|dikha)\\s*(?:my|mera|meri)?\\s*"), "").trim()
+                    .ifBlank { param }
+                if (obj.isNotBlank()) {
+                    getVision().findObject(obj)
+                } else {
+                    service?.speak("What are you looking for?")
+                }
+                true
+            }
+            SmartCommandMatcher.CommandIntent.START_NAVIGATION_MODE -> {
+                getVision().startNavigation()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.STOP_NAVIGATION_MODE -> {
+                getVision().stopNavigation()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.VISION_FOLLOW_UP -> {
+                getVision().handleFollowUp(command)
                 true
             }
         }
@@ -2501,5 +2599,14 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 return false
             }
         }
+    }
+
+    /**
+     * Destroy the Vision Assistance Module.
+     * Called from AutomationAccessibilityService.onDestroy().
+     */
+    fun destroyVision() {
+        visionOrchestrator?.destroy()
+        visionOrchestrator = null
     }
 }

@@ -190,7 +190,31 @@ object HindiResponseMapper {
         "Could not search in Google Maps" to "गूगल मैप में खोज नहीं हो पाई",
         "Could not start navigation" to "नेविगेशन शुरू नहीं हो पाई",
         "Say yes to start, or walking, transit, or cycling for a different mode. Say cancel to stop." to "शुरू करने के लिए हां बोलें, या पैदल, ट्रांजिट, या साइकिल बोलें। रद्द करने के लिए कैंसल बोलें।",
-        "Found" to "मिला"
+        "Found" to "मिला",
+
+        // === VISION ASSISTANCE ===
+        "I cannot see anything. Please connect the camera through OTG cable." to "मुझे कुछ दिख नहीं रहा। कृपया कैमरा OTG केबल से जोड़ें।",
+        "I cannot see anything right now. Please check the camera." to "मुझे अभी कुछ दिख नहीं रहा। कृपया कैमरा चेक करें।",
+        "Camera got disconnected" to "कैमरा डिस्कनेक्ट हो गया",
+        "Camera connected" to "कैमरा जुड़ गया",
+        "I stopped watching" to "मैंने देखना बंद कर दिया",
+        "Navigation stopped" to "नेविगेशन बंद कर दिया",
+        "Navigation mode started" to "नेविगेशन मोड शुरू हो गया",
+        "I don't see anyone in front of the camera right now." to "मुझे अभी कैमरे के सामने कोई नहीं दिख रहा।",
+        "I haven't looked around yet. Say 'what is around me' first." to "मैंने अभी तक देखा नहीं है। पहले 'mere aas paas kya hai' बोलें।",
+        "I don't know anyone yet." to "मैं अभी किसी को नहीं जानता।",
+        "Could not start vision mode. Please try again." to "विज़न मोड शुरू नहीं हो पाया। कृपया फिर से कोशिश करें।",
+        "Something went wrong. Please try again." to "कुछ गलत हो गया। कृपया फिर से कोशिश करें।",
+        "USB camera permission denied" to "USB कैमरा की अनुमति नहीं मिली",
+        "I'll remember" to "मैं याद रखूंगा",
+        "I've forgotten" to "मैंने भुला दिया",
+        "I don't know anyone named" to "मैं किसी को नहीं जानता जिसका नाम है",
+        "I know" to "मैं जानता हूँ",
+        "people" to "लोगों को",
+        "person" to "व्यक्ति को",
+        "I need to slow down a bit. Try again in a few seconds." to "मुझे थोड़ा धीमा करना होगा। कुछ सेकंड बाद फिर से कोशिश करें।",
+        "I'm having trouble connecting to my vision service." to "विज़न सेवा से जुड़ने में परेशानी हो रही है।",
+        "Please check your internet connection." to "कृपया अपना इंटरनेट कनेक्शन चेक करें."
     )
 
     /**

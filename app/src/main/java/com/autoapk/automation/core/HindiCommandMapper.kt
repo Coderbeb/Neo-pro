@@ -249,7 +249,62 @@ object HindiCommandMapper {
         "carol" to "karo",          // "karo" → "carol"
         "jar" to "jao",             // "jao" → "jar"
         "jaw" to "jao",             // "jao" → "jaw"
-        "job" to "jao"              // "jao" → "job"
+        "job" to "jao",             // "jao" → "job"
+
+        // === VISION ASSISTANCE ===
+        "mere aas paas kya hai" to "what is around me",
+        "mere aas pass kya hai" to "what is around me",
+        "मेरे आस पास क्या है" to "what is around me",
+        "kya dikh raha hai" to "what do you see",
+        "क्या दिख रहा है" to "what do you see",
+        "dekho kya hai" to "look around",
+        "देखो क्या है" to "look around",
+        "batao kya hai saamne" to "what is around me",
+        "बताओ क्या है सामने" to "what is around me",
+        "kaun hai saamne" to "who is there",
+        "कौन है सामने" to "who is there",
+        "kaun hai yahan" to "who is there",
+        "कौन है यहाँ" to "who is there",
+        "kaun dikh raha hai" to "who is there",
+        "कौन दिख रहा है" to "who is there",
+        "kya likha hai" to "read text",
+        "क्या लिखा है" to "read text",
+        "padho ye" to "read text",
+        "पढ़ो ये" to "read text",
+        "board pe kya hai" to "read text",
+        "बोर्ड पे क्या है" to "read text",
+        "dekhte raho" to "start watching",
+        "देखते रहो" to "start watching",
+        "aankh kholo" to "start watching",
+        "आँख खोलो" to "start watching",
+        "monitoring chalu karo" to "start watching",
+        "मॉनिटरिंग चालू करो" to "start watching",
+        "band karo dekhna" to "stop watching",
+        "बंद करो देखना" to "stop watching",
+        "aankh band karo" to "stop watching",
+        "आँख बंद करो" to "stop watching",
+        "monitoring band karo" to "stop watching",
+        "मॉनिटरिंग बंद करो" to "stop watching",
+        "kya badla" to "what changed",
+        "क्या बदला" to "what changed",
+        "kuch naya hai kya" to "anything new",
+        "कुछ नया है क्या" to "anything new",
+        "rasta safe hai" to "is path safe",
+        "रास्ता सेफ है" to "is path safe",
+        "chal sakta hoon" to "can I walk",
+        "चल सकता हूँ" to "can I walk",
+        "aage kuch hai kya" to "is it safe ahead",
+        "आगे कुछ है क्या" to "is it safe ahead",
+        "rasta dikhao" to "guide me walking",
+        "रास्ता दिखाओ" to "guide me walking",
+        "chalte waqt batao" to "guide me walking",
+        "चलते वक्त बताओ" to "guide me walking",
+        "navigation band karo" to "stop navigation",
+        "नेविगेशन बंद करो" to "stop navigation",
+        "rasta dikhana band" to "stop navigation",
+        "रास्ता दिखाना बंद" to "stop navigation",
+        "tum kisko jaante ho" to "who do you know",
+        "तुम किसको जानते हो" to "who do you know"
     )
 
     /**
@@ -268,6 +323,22 @@ object HindiCommandMapper {
     )
     private val callPattern = Regex("(.+?)\\s*(को\\s*कॉल\\s*करो|ko\\s*call\\s*karo|को\\s*फोन\\s*करो|ko\\s*phone\\s*karo)$", RegexOption.IGNORE_CASE)
     private val callPrefixPattern = Regex("^(कॉल\\s*करो\\s*|call\\s*karo\\s*)(.+)", RegexOption.IGNORE_CASE)
+
+    // Vision: "isko yaad rakho X" / "iska chehra save karo X" → "remember this face as X"
+    private val rememberFacePattern = Regex(
+        "^(?:isko\\s+yaad\\s+rakho|iska\\s+chehra\\s+save\\s+karo|इसको\\s+याद\\s+रखो|इसका\\s+चेहरा\\s+सेव\\s+करो)\\s+(.+)$",
+        RegexOption.IGNORE_CASE
+    )
+    // Vision: "X ka chehra bhool jao" → "forget X's face"
+    private val forgetFacePattern = Regex(
+        "^(.+?)\\s*(?:ka\\s+chehra\\s+bhool\\s+jao|का\\s+चेहरा\\s+भूल\\s+जाओ)$",
+        RegexOption.IGNORE_CASE
+    )
+    // Vision: "mera X kahan hai" → "where is my X"
+    private val findObjectPattern = Regex(
+        "^(?:mera|meri|मेरा|मेरी)\\s+(.+?)\\s+(?:kahan\\s+hai|kidhar\\s+hai|कहाँ\\s+है|किधर\\s+है|dikha|दिखा)$",
+        RegexOption.IGNORE_CASE
+    )
 
     /**
      * Translate a Hindi/Hinglish command to English.
@@ -294,6 +365,24 @@ object HindiCommandMapper {
         callPrefixPattern.find(command)?.let { match ->
             val contactName = match.groupValues[2].trim()
             return "call $contactName"
+        }
+
+        // "isko yaad rakho Rajesh" → "remember this face as Rajesh"
+        rememberFacePattern.find(command)?.let { match ->
+            val name = match.groupValues[1].trim()
+            return "remember this face as $name"
+        }
+
+        // "Rajesh ka chehra bhool jao" → "forget Rajesh's face"
+        forgetFacePattern.find(command)?.let { match ->
+            val name = match.groupValues[1].trim()
+            return "forget ${name}'s face"
+        }
+
+        // "mera bag kahan hai" → "where is my bag"
+        findObjectPattern.find(command)?.let { match ->
+            val obj = match.groupValues[1].trim()
+            return "where is my $obj"
         }
 
         // 2. Apply direct translation rules (longest match first — they're ordered that way)

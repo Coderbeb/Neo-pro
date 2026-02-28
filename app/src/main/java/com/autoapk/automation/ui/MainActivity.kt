@@ -173,6 +173,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Built-in Camera toggle for Vision module
+        val visionPrefs = getSharedPreferences("neo_vision", Context.MODE_PRIVATE)
+        binding.switchBuiltInCamera.isChecked = visionPrefs.getBoolean("use_builtin_camera", false)
+        binding.switchBuiltInCamera.setOnCheckedChangeListener { _, isChecked ->
+            visionPrefs.edit().putBoolean("use_builtin_camera", isChecked).apply()
+            if (isChecked) {
+                addToLog("📷 Built-in camera ON for vision features")
+            } else {
+                addToLog("📷 Built-in camera OFF — will use USB OTG camera")
+            }
+        }
+
         updateNeoModeUI(neoState.currentMode)
     }
 

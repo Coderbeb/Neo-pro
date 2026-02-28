@@ -133,7 +133,15 @@ object SmartCommandMatcher {
         OPEN_MAP, NAVIGATE,
 
         // Generic QS tile toggle (catches any quick setting by name)
-        TOGGLE_QS_TILE
+        TOGGLE_QS_TILE,
+
+        // Vision Assistance Module
+        DESCRIBE_SCENE, WHO_IS_THERE, READ_TEXT_VISION,
+        START_AUTO_DESCRIBE, STOP_AUTO_DESCRIBE,
+        REMEMBER_FACE, FORGET_FACE, LIST_KNOWN_FACES,
+        WHAT_CHANGED, IS_PATH_SAFE, FIND_OBJECT,
+        START_NAVIGATION_MODE, STOP_NAVIGATION_MODE,
+        VISION_FOLLOW_UP
     }
 
     // ==================== EXACT PHRASES (instant HashMap lookup) ====================
@@ -268,6 +276,49 @@ object SmartCommandMatcher {
 
         for (p in listOf("otg on", "otg off", "usb on", "usb off"))
             put(p, CommandIntent.TOGGLE_QS_TILE)
+
+        // --- VISION ASSISTANCE ---
+        for (p in listOf("what's around me", "whats around me", "what is around me",
+                         "describe surroundings", "describe surrounding", "what do you see",
+                         "look around", "describe scene", "describe the scene",
+                         "tell me what you see", "what can you see"))
+            put(p, CommandIntent.DESCRIBE_SCENE)
+
+        for (p in listOf("who is there", "who is in front of me", "who can you see",
+                         "who do you see", "who is here", "who is that"))
+            put(p, CommandIntent.WHO_IS_THERE)
+
+        for (p in listOf("read that sign", "what does it say", "read text",
+                         "read that", "read the sign", "what is written"))
+            put(p, CommandIntent.READ_TEXT_VISION)
+
+        for (p in listOf("start watching", "auto describe on", "keep looking",
+                         "monitor mode on", "start monitoring"))
+            put(p, CommandIntent.START_AUTO_DESCRIBE)
+
+        for (p in listOf("stop watching", "auto describe off", "stop looking",
+                         "monitor mode off", "stop monitoring"))
+            put(p, CommandIntent.STOP_AUTO_DESCRIBE)
+
+        for (p in listOf("what changed", "anything new", "what is different",
+                         "what's different", "any changes"))
+            put(p, CommandIntent.WHAT_CHANGED)
+
+        for (p in listOf("is path clear", "is it safe ahead", "can I walk",
+                         "is path safe", "is the path clear", "is it safe to walk"))
+            put(p, CommandIntent.IS_PATH_SAFE)
+
+        for (p in listOf("guide me walking", "start navigation mode",
+                         "start guiding", "navigation mode on"))
+            put(p, CommandIntent.START_NAVIGATION_MODE)
+
+        for (p in listOf("stop navigation", "stop guiding",
+                         "navigation mode off", "stop navigation mode"))
+            put(p, CommandIntent.STOP_NAVIGATION_MODE)
+
+        for (p in listOf("who do you know", "list known faces",
+                         "how many faces do you know", "which faces do you know"))
+            put(p, CommandIntent.LIST_KNOWN_FACES)
     }
 
     // ==================== KEYWORD DATABASE ====================
@@ -635,7 +686,61 @@ object SmartCommandMatcher {
         ), requireAll = true),
         IntentKeywords(CommandIntent.NAVIGATE, listOf(
             setOf("navigate", "navigation", "direction", "directions", "rasta", "route", "नेविगेट", "रास्ता", "दिशा")
-        ), weight = 1.3f)
+        ), weight = 1.3f),
+
+        // === VISION ASSISTANCE ===
+        IntentKeywords(CommandIntent.DESCRIBE_SCENE, listOf(
+            setOf("describe", "around", "surroundings", "see", "dekho", "dikhao", "batao", "samne", "saamne", "aas", "paas", "scene", "दिखाओ", "बताओ", "सामने", "देखो"),
+            setOf("around", "me", "surroundings", "nearby", "look", "what", "kya", "hai", "hai", "क्या", "है")
+        ), weight = 1.5f),
+        IntentKeywords(CommandIntent.WHO_IS_THERE, listOf(
+            setOf("who", "kaun", "kon", "कौन"),
+            setOf("there", "front", "here", "see", "saamne", "samne", "yahan", "hai", "dikh", "सामने", "यहाँ", "है", "दिख")
+        ), weight = 1.5f),
+        IntentKeywords(CommandIntent.READ_TEXT_VISION, listOf(
+            setOf("read", "padho", "padh", "पढ़ो"),
+            setOf("sign", "text", "board", "written", "likha", "says", "say", "लिखा", "बोर्ड")
+        ), weight = 1.4f, requireAll = true),
+        IntentKeywords(CommandIntent.START_AUTO_DESCRIBE, listOf(
+            setOf("start", "auto", "keep", "monitor", "chalu", "shuru", "dekhte", "aankh", "चालू", "शुरू", "देखते", "आँख"),
+            setOf("watching", "describe", "looking", "monitoring", "raho", "kholo", "mode", "रहो", "खोलो")
+        ), weight = 1.6f),
+        IntentKeywords(CommandIntent.STOP_AUTO_DESCRIBE, listOf(
+            setOf("stop", "band", "off", "aankh", "बंद", "आँख"),
+            setOf("watching", "describe", "looking", "monitoring", "dekhna", "karo", "band", "देखना", "करो")
+        ), weight = 1.6f),
+        IntentKeywords(CommandIntent.REMEMBER_FACE, listOf(
+            setOf("remember", "save", "yaad", "store", "register", "याद"),
+            setOf("face", "chehra", "person", "चेहरा")
+        ), weight = 1.5f, requireAll = true),
+        IntentKeywords(CommandIntent.FORGET_FACE, listOf(
+            setOf("forget", "delete", "remove", "bhool", "hata", "भूल", "हटा"),
+            setOf("face", "chehra", "person", "चेहरा")
+        ), weight = 1.5f, requireAll = true),
+        IntentKeywords(CommandIntent.LIST_KNOWN_FACES, listOf(
+            setOf("who", "list", "how", "kaun", "kitne", "कौन", "कितने"),
+            setOf("know", "known", "faces", "jaante", "pehchante", "जानते", "पहचानते")
+        ), weight = 1.3f),
+        IntentKeywords(CommandIntent.WHAT_CHANGED, listOf(
+            setOf("what", "anything", "kya", "kuch", "क्या", "कुछ"),
+            setOf("changed", "new", "different", "badla", "naya", "बदला", "नया")
+        ), weight = 1.3f),
+        IntentKeywords(CommandIntent.IS_PATH_SAFE, listOf(
+            setOf("path", "road", "rasta", "safe", "clear", "walk", "ahead", "रास्ता", "सेफ", "आगे"),
+            setOf("safe", "clear", "walk", "chal", "aage", "hai", "सेफ", "चल", "है")
+        ), weight = 1.5f),
+        IntentKeywords(CommandIntent.FIND_OBJECT, listOf(
+            setOf("where", "find", "locate", "kahan", "dhundho", "dikha", "कहाँ", "ढूंढो", "दिखा"),
+            setOf("my", "the", "mera", "meri", "bag", "phone", "keys", "मेरा", "मेरी")
+        ), weight = 1.3f),
+        IntentKeywords(CommandIntent.START_NAVIGATION_MODE, listOf(
+            setOf("guide", "navigation", "navigate", "rasta", "chalte", "गाइड", "रास्ता", "चलते"),
+            setOf("walking", "mode", "start", "dikhao", "waqt", "batao", "दिखाओ", "बताओ")
+        ), weight = 1.5f),
+        IntentKeywords(CommandIntent.STOP_NAVIGATION_MODE, listOf(
+            setOf("stop", "band", "बंद"),
+            setOf("navigation", "guiding", "navigate", "guide", "rasta", "नेविगेशन", "रास्ता")
+        ), weight = 1.4f, requireAll = true)
     )
 
     // ==================== FILLER WORDS ====================
