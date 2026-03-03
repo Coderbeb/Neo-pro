@@ -98,9 +98,12 @@ class VisionAssistantOrchestrator(
             // Context Memory
             memory = VisionContextMemory()
 
-            // Gemini Service
+            // Gemini Service — use the model and API key selected by user in settings
+            val selectedModel = GeminiVisionService.getSelectedModel(context)
+            val modelManager = com.autoapk.automation.core.GeminiModelManager(context)
+            val apiKey = modelManager.getApiKey()
             geminiService = GeminiVisionService().also {
-                it.initialize()
+                it.initialize(selectedModel, apiKey)
             }
 
             // Auto-Describe Manager
@@ -174,18 +177,56 @@ class VisionAssistantOrchestrator(
     }
 
     /**
-     * Compress bitmap for API using USB camera manager's utility.
+     * Compress bitmap for API — inline implementation.
+     * Downscales to 768x576 at 80% JPEG quality for good Gemini results.
      */
     private fun compressForApi(bitmap: android.graphics.Bitmap): ByteArray {
-        // UsbCameraManager has the compression logic; it works on any bitmap
-        return usbCameraManager!!.compressForApi(bitmap)
+        val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 768, 576, true)
+        val stream = java.io.ByteArrayOutputStream()
+        scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+        if (scaled !== bitmap) scaled.recycle()
+        return stream.toByteArray()
     }
 
     /**
-     * Compute perceptual hash using USB camera manager's utility.
+     * Compute perceptual hash — inline implementation.
+     * 64-bit hash based on 8x8 grayscale mean comparison.
      */
     private fun computeHash(bitmap: android.graphics.Bitmap): Long {
-        return usbCameraManager!!.computePerceptualHash(bitmap)
+        val small = android.graphics.Bitmap.createScaledBitmap(bitmap, 8, 8, true)
+        val pixels = IntArray(64)
+        small.getPixels(pixels, 0, 8, 0, 0, 8, 8)
+        if (small !== bitmap) small.recycle()
+
+        var sum = 0L
+        val grayValues = IntArray(64)
+        for (i in pixels.indices) {
+            val r = android.graphics.Color.red(pixels[i])
+            val g = android.graphics.Color.green(pixels[i])
+            val b = android.graphics.Color.blue(pixels[i])
+            grayValues[i] = (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+            sum += grayValues[i]
+        }
+        val mean = sum / 64
+
+        var hash = 0L
+        for (i in grayValues.indices) {
+            if (grayValues[i] >= mean) hash = hash or (1L shl i)
+        }
+        return hash
+    }
+
+    /**
+     * Change the Gemini model at runtime.
+     * Reinitializes the GeminiVisionService with the new model and resets chat.
+     */
+    fun changeModel(modelName: String) {
+        Log.i(TAG, "Changing Gemini model to: $modelName")
+        GeminiVisionService.setSelectedModel(context, modelName)
+        if (isInitialized) {
+            geminiService?.reinitialize(modelName)
+            memory?.clear()  // Clear memory since responses may differ with new model
+        }
     }
 
     // ==================== HIGH-LEVEL ACTIONS ====================

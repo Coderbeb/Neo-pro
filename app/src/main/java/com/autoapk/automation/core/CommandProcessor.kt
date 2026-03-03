@@ -2609,4 +2609,18 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         visionOrchestrator?.destroy()
         visionOrchestrator = null
     }
+
+    /**
+     * Change the Gemini model used for vision features.
+     * Called from the sidebar model selector in MainActivity.
+     */
+    fun changeVisionModel(modelId: String) {
+        Log.i(TAG, "Changing vision model to: $modelId")
+        if (visionOrchestrator != null) {
+            visionOrchestrator?.changeModel(modelId)
+        } else {
+            // Not initialized yet — model will be read from SharedPreferences on first use
+            com.autoapk.automation.vision.GeminiVisionService.setSelectedModel(context, modelId)
+        }
+    }
 }

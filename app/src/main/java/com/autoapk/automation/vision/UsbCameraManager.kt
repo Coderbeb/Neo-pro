@@ -42,10 +42,10 @@ class UsbCameraManager(private val context: Context) {
         private const val CAPTURE_WIDTH = 640
         private const val CAPTURE_HEIGHT = 480
 
-        // API compression settings
-        private const val API_WIDTH = 512
-        private const val API_HEIGHT = 384
-        private const val JPEG_QUALITY = 55
+        // API compression settings — higher quality for better Gemini vision results
+        private const val API_WIDTH = 768
+        private const val API_HEIGHT = 576
+        private const val JPEG_QUALITY = 80
 
         // Perceptual hash size
         private const val HASH_SIZE = 8

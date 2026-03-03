@@ -5,19 +5,25 @@ import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Typeface
 import android.os.Build
+import android.view.Gravity
 import android.view.View
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.GravityCompat
 import com.autoapk.automation.R
 import com.autoapk.automation.core.AutomationAccessibilityService
 import com.autoapk.automation.core.AutomationForegroundService
 import com.autoapk.automation.core.CommandProcessor
+import com.autoapk.automation.core.GeminiModelManager
 import com.autoapk.automation.databinding.ActivityMainBinding
 import com.autoapk.automation.input.BluetoothCommandReceiver
 import com.autoapk.automation.input.GoogleVoiceCommandManager
@@ -58,6 +64,9 @@ class MainActivity : AppCompatActivity() {
 
     // Service Health Monitor — checks accessibility service every 3 seconds
     private lateinit var healthMonitor: ServiceHealthMonitor
+
+    // Gemini Model Manager
+    private lateinit var modelManager: GeminiModelManager
 
     // ==================== LIFECYCLE ====================
 
@@ -123,6 +132,11 @@ class MainActivity : AppCompatActivity() {
         healthMonitor = ServiceHealthMonitor(this)
         healthMonitor.onAppLaunch()
         addToLog(if (healthMonitor.isServiceEnabled()) "✅ Accessibility service enabled" else "⚠️ Accessibility service not enabled")
+
+        // Initialize Gemini Model Manager + Drawer
+        modelManager = GeminiModelManager(this)
+        setupDrawer()
+        setupModelSelector()
     }
 
     private fun setupNeoStateManager() {
@@ -249,6 +263,7 @@ class MainActivity : AppCompatActivity() {
         bluetoothReceiver.stop()
         stopForegroundService()
         neoState.destroy()
+        modelManager.release()
         Log.d(TAG, "MainActivity destroyed")
         AutomationAccessibilityService.instance?.neoState = null
         AutomationAccessibilityService.instance?.ttsListener = null
@@ -756,4 +771,139 @@ class MainActivity : AppCompatActivity() {
             binding.tvCommandLog.text = commandLog.joinToString("\n")
         }
     }
+
+    // ==================== DRAWER + MODEL SELECTION ====================
+
+    private fun setupDrawer() {
+        binding.btnHamburger.setOnClickListener {
+            binding.drawerLayout.openDrawer(GravityCompat.START)
+        }
+    }
+
+    private fun setupModelSelector() {
+        // Show the currently selected model
+        val currentModelId = modelManager.getSelectedModelId()
+        binding.tvCurrentModel.text = currentModelId
+
+        // API Key setup
+        setupApiKeyInput()
+
+        // Populate the curated model list
+        populateModelList()
+    }
+
+    private fun setupApiKeyInput() {
+        // Show current key status
+        val hasKey = modelManager.hasApiKey()
+        binding.tvApiKeyStatus.text = if (hasKey) "✅ API key saved" else "⚠️ No API key saved"
+        binding.tvApiKeyStatus.setTextColor(
+            ContextCompat.getColor(this, if (hasKey) R.color.status_active else R.color.status_warning)
+        )
+
+        // Pre-fill if key exists (masked)
+        if (hasKey) {
+            val key = modelManager.getApiKey()
+            binding.etApiKey.setText(key)
+        }
+
+        // View/Hide toggle button
+        var isKeyVisible = false
+        binding.btnToggleApiKeyVisibility.setOnClickListener {
+            isKeyVisible = !isKeyVisible
+            if (isKeyVisible) {
+                binding.etApiKey.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                binding.btnToggleApiKeyVisibility.text = "🙈"
+            } else {
+                binding.etApiKey.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                binding.btnToggleApiKeyVisibility.text = "👁"
+            }
+            // Keep cursor at end
+            binding.etApiKey.setSelection(binding.etApiKey.text?.length ?: 0)
+        }
+
+        // Save button
+        binding.btnSaveApiKey.setOnClickListener {
+            val key = binding.etApiKey.text?.toString()?.trim() ?: ""
+            if (key.isNotBlank()) {
+                modelManager.setApiKey(key)
+                binding.tvApiKeyStatus.text = "✅ API key saved"
+                binding.tvApiKeyStatus.setTextColor(ContextCompat.getColor(this, R.color.status_active))
+                addToLog("🔑 Gemini API key updated")
+                Toast.makeText(this, "API key saved!", Toast.LENGTH_SHORT).show()
+            } else {
+                binding.tvApiKeyStatus.text = "⚠️ Please enter an API key"
+                binding.tvApiKeyStatus.setTextColor(ContextCompat.getColor(this, R.color.status_inactive))
+            }
+        }
+    }
+
+    private fun populateModelList() {
+        val models = modelManager.getModels()
+        val container = binding.layoutModelList
+        container.removeAllViews()
+
+        val selectedModelId = modelManager.getSelectedModelId()
+        val dp8 = (8 * resources.displayMetrics.density).toInt()
+        val dp12 = (12 * resources.displayMetrics.density).toInt()
+
+        for (model in models) {
+            val isSelected = model.modelId == selectedModelId
+
+            // Card-like container for each model
+            val itemLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp12, dp12, dp12, dp12)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = dp8
+                }
+                setBackgroundColor(
+                    if (isSelected) ContextCompat.getColor(this@MainActivity, R.color.card_dark)
+                    else ContextCompat.getColor(this@MainActivity, R.color.surface_dark)
+                )
+                gravity = Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+            }
+
+            val checkmark = TextView(this).apply {
+                text = if (isSelected) "✅  " else "      "
+                textSize = 13f
+            }
+
+            val nameView = TextView(this).apply {
+                text = model.displayName
+                setTextColor(ContextCompat.getColor(this@MainActivity,
+                    if (isSelected) R.color.status_active else R.color.text_primary))
+                textSize = 13f
+                if (isSelected) setTypeface(null, Typeface.BOLD)
+            }
+
+            itemLayout.addView(checkmark)
+            itemLayout.addView(nameView)
+
+            // Click handler — select this model
+            itemLayout.setOnClickListener {
+                modelManager.setSelectedModelId(model.modelId)
+                binding.tvCurrentModel.text = model.modelId
+
+                // Reinitialize vision with new model
+                commandProcessor.changeVisionModel(model.modelId)
+
+                addToLog("🤖 Switched to model: ${model.displayName}")
+                Toast.makeText(this, "Model: ${model.displayName}", Toast.LENGTH_SHORT).show()
+
+                // Refresh the list to update checkmarks
+                populateModelList()
+
+                // Close drawer
+                binding.drawerLayout.closeDrawer(GravityCompat.START)
+            }
+
+            container.addView(itemLayout)
+        }
+    }
 }
+
