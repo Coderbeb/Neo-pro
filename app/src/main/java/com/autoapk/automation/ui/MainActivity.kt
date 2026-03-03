@@ -143,9 +143,20 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     updateNeoModeUI(newMode)
                     when (newMode) {
-                        NeoStateManager.NeoMode.ACTIVE -> addToLog("🟢 Neo ACTIVE")
-                        NeoStateManager.NeoMode.SLEEPING -> addToLog("😴 Neo SLEEPING")
-                        NeoStateManager.NeoMode.IN_CALL -> addToLog("📞 Neo IN-CALL mode")
+                        NeoStateManager.NeoMode.ACTIVE -> {
+                            addToLog("🟢 Neo ACTIVE")
+                            // Switch voice to active SpeechRecognizer mode for commands
+                            voiceManager.setForceActiveMode(true)
+                        }
+                        NeoStateManager.NeoMode.SLEEPING -> {
+                            addToLog("😴 Neo SLEEPING")
+                            // Switch voice to passive AudioRecord mode (no media interference)
+                            voiceManager.setForceActiveMode(false)
+                        }
+                        NeoStateManager.NeoMode.IN_CALL -> {
+                            addToLog("📞 Neo IN-CALL mode")
+                            voiceManager.setForceActiveMode(true)
+                        }
                     }
                 }
             }

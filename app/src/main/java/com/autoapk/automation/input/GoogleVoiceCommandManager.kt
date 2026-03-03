@@ -1,7 +1,12 @@
 package com.autoapk.automation.input
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -14,17 +19,27 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.core.content.ContextCompat
 
 /**
- * Hybrid Voice Recognition Manager
+ * Hybrid Voice Recognition Manager — Dual Mode
  *
- * Strategy (3 fallback levels):
- *  Level 1 — Online:  standard SpeechRecognizer (Google Cloud)
- *  Level 2 — Offline: standard SpeechRecognizer + EXTRA_PREFER_OFFLINE=true
- *  Level 3 — Offline: createOnDeviceSpeechRecognizer (Android 10+, API 31 system module)
+ * Two listening modes to avoid media interference:
  *
- * Error 13 → immediately try next level, do NOT give up
- * Network errors → switch to offline levels, keep retrying
+ *   PASSIVE MODE (AudioRecord):
+ *     - Raw mic capture via AudioRecord (NO audio focus request)
+ *     - Media keeps playing at full volume, uninterrupted
+ *     - Monitors RMS energy to detect voice activity
+ *     - When voice detected → switches to SpeechRecognizer briefly
+ *
+ *   ACTIVE MODE (SpeechRecognizer):
+ *     - Standard SpeechRecognizer for transcription
+ *     - Used only when voice activity is detected
+ *     - 3 fallback levels: Online → prefer_offline → on-device
+ *     - May briefly affect media (Android platform behavior)
+ *
+ * This prevents the pause-resume cycling where SpeechRecognizer's
+ * internal audio focus requests cause media to pause every few seconds.
  */
 class GoogleVoiceCommandManager(private val context: Context) {
 
@@ -32,6 +47,17 @@ class GoogleVoiceCommandManager(private val context: Context) {
         private const val TAG = "Neo_Voice"
         private const val DEDUP_WINDOW_MS = 2000L
         private const val MAX_CONSECUTIVE_ERRORS = 10
+
+        // AudioRecord config
+        private const val SAMPLE_RATE = 16000
+        private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
+        private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
+
+        // Voice Activity Detection threshold
+        // Values: silence ~50-200, soft speech ~500-1500, normal speech ~2000-5000
+        private const val VAD_THRESHOLD = 600.0
+        // How many consecutive frames must exceed threshold before triggering
+        private const val VAD_TRIGGER_FRAMES = 3
     }
 
     enum class RecognitionMode { ONLINE, OFFLINE }
@@ -49,6 +75,7 @@ class GoogleVoiceCommandManager(private val context: Context) {
         fun onStatusUpdate(status: String)
     }
 
+    // SpeechRecognizer fields
     private var speechRecognizer: SpeechRecognizer? = null
     private var listener: VoiceCommandListener? = null
     private var isListening = false
@@ -58,7 +85,13 @@ class GoogleVoiceCommandManager(private val context: Context) {
     private var lastCommand = ""
     private var lastCommandTime = 0L
     private var ttsCheckCallback: (() -> Boolean)? = null
-    private val speakerDetection = com.autoapk.automation.core.SpeakerDetection(context)
+
+    // AudioRecord fields (passive mode)
+    private var audioRecord: AudioRecord? = null
+    private var passiveThread: Thread? = null
+    @Volatile private var isPassiveMode = false
+    // When true, we stay in active SpeechRecognizer mode (after wake word / during active Neo)
+    private var forceActiveMode = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val networkHandler = Handler(Looper.getMainLooper())
@@ -68,9 +101,27 @@ class GoogleVoiceCommandManager(private val context: Context) {
 
     fun setListener(l: VoiceCommandListener) { listener = l }
     fun setTtsCheckCallback(cb: () -> Boolean) { ttsCheckCallback = cb }
-    fun isCurrentlyListening() = isListening
+    fun isCurrentlyListening() = isListening || isPassiveMode
     fun isOnline() = offlineLevel == 0
     fun getCurrentMode() = if (offlineLevel == 0) RecognitionMode.ONLINE else RecognitionMode.OFFLINE
+
+    /**
+     * Force active SpeechRecognizer mode (called when Neo wakes up).
+     * In this mode, we skip passive AudioRecord and go straight to SpeechRecognizer.
+     */
+    fun setForceActiveMode(active: Boolean) {
+        forceActiveMode = active
+        if (active && isPassiveMode && shouldKeepListening) {
+            Log.i(TAG, "Force active mode ON → switching from passive to SpeechRecognizer")
+            stopPassiveListening()
+            doStartListening()
+        } else if (!active && !isPassiveMode && shouldKeepListening) {
+            Log.i(TAG, "Force active mode OFF → switching from SpeechRecognizer to passive")
+            destroyRecognizer()
+            isListening = false
+            startPassiveListening()
+        }
+    }
 
     // ===================== NETWORK MONITORING =====================
 
@@ -80,7 +131,6 @@ class GoogleVoiceCommandManager(private val context: Context) {
         networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 if (offlineLevel > 0 && shouldKeepListening) {
-                    // Network restored — go back to online
                     networkHandler.removeCallbacksAndMessages(null)
                     networkHandler.postDelayed({
                         if (offlineLevel > 0 && shouldKeepListening) {
@@ -89,7 +139,7 @@ class GoogleVoiceCommandManager(private val context: Context) {
                             error13Count = 0
                             listener?.onModeChanged(RecognitionMode.ONLINE)
                             updateStatus("🌐 Online — switching...")
-                            if (isListening) {
+                            if (!isPassiveMode && isListening) {
                                 isListening = false
                                 destroyRecognizer()
                                 restartListening(500)
@@ -131,10 +181,134 @@ class GoogleVoiceCommandManager(private val context: Context) {
         }
     }
 
+    // ===================== PASSIVE LISTENING (AudioRecord — no audio focus) =====================
+
+    /**
+     * Start passive listening with AudioRecord.
+     * This does NOT request audio focus → media plays uninterrupted.
+     * Monitors RMS energy to detect voice activity.
+     */
+    private fun startPassiveListening() {
+        if (isPassiveMode) return
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "RECORD_AUDIO permission not granted for passive listening")
+            listener?.onError("Microphone permission required")
+            return
+        }
+
+        try {
+            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            if (bufferSize == AudioRecord.ERROR_BAD_VALUE || bufferSize == AudioRecord.ERROR) {
+                Log.e(TAG, "Invalid AudioRecord buffer size: $bufferSize")
+                // Fallback to SpeechRecognizer
+                doStartListening()
+                return
+            }
+
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                SAMPLE_RATE,
+                CHANNEL_CONFIG,
+                AUDIO_FORMAT,
+                bufferSize * 2
+            )
+
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord failed to initialize — falling back to SpeechRecognizer")
+                audioRecord?.release()
+                audioRecord = null
+                doStartListening()
+                return
+            }
+
+            audioRecord?.startRecording()
+            isPassiveMode = true
+            isListening = true
+            updateStatus("🎤 Passive listening — media unaffected")
+            listener?.onListeningStarted()
+            Log.i(TAG, "Passive listening started (AudioRecord, no audio focus)")
+
+            // Background thread for RMS monitoring
+            passiveThread = Thread({
+                val buffer = ShortArray(bufferSize / 2)
+                var consecutiveVoiceFrames = 0
+
+                while (isPassiveMode && shouldKeepListening) {
+                    try {
+                        val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                        if (read > 0) {
+                            val rms = calculateRMS(buffer, read)
+                            if (rms > VAD_THRESHOLD) {
+                                consecutiveVoiceFrames++
+                                if (consecutiveVoiceFrames >= VAD_TRIGGER_FRAMES) {
+                                    Log.i(TAG, "Voice activity detected (RMS=${"%.0f".format(rms)}) → starting SpeechRecognizer")
+                                    mainHandler.post { onVoiceDetected() }
+                                    break
+                                }
+                            } else {
+                                consecutiveVoiceFrames = 0
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Passive read error: ${e.message}")
+                        break
+                    }
+                }
+            }, "Neo_PassiveMic")
+            passiveThread?.start()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Passive listening failed: ${e.message}", e)
+            isPassiveMode = false
+            // Fallback to SpeechRecognizer
+            doStartListening()
+        }
+    }
+
+    private fun stopPassiveListening() {
+        isPassiveMode = false
+        try {
+            passiveThread?.interrupt()
+            passiveThread = null
+        } catch (_: Exception) {}
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+            audioRecord = null
+        } catch (_: Exception) {}
+        Log.d(TAG, "Passive listening stopped")
+    }
+
+    private fun calculateRMS(buffer: ShortArray, readSize: Int): Double {
+        var sum = 0.0
+        for (i in 0 until readSize) {
+            sum += buffer[i].toLong() * buffer[i].toLong()
+        }
+        return Math.sqrt(sum / readSize)
+    }
+
+    /**
+     * Called when voice activity is detected in passive mode.
+     * Switches to SpeechRecognizer for transcription.
+     */
+    private fun onVoiceDetected() {
+        if (!shouldKeepListening) return
+        if (ttsCheckCallback?.invoke() == true) {
+            // TTS is speaking — don't switch, retry passive after delay
+            mainHandler.postDelayed({
+                if (shouldKeepListening && !isPassiveMode) startPassiveListening()
+            }, 500)
+            return
+        }
+        stopPassiveListening()
+        doStartListening()
+    }
+
     // ===================== START / STOP =====================
 
     fun startListening() {
-        if (isListening) return
+        if (isListening || isPassiveMode) return
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             listener?.onError("Speech recognition not available on this device")
             updateStatus("❌ Recognition unavailable")
@@ -145,7 +319,14 @@ class GoogleVoiceCommandManager(private val context: Context) {
         offlineLevel = if (isNetworkConnected()) 0 else 1
         error13Count = 0
         registerNetworkCallback()
-        doStartListening()
+
+        if (forceActiveMode) {
+            // Neo is already active — go straight to SpeechRecognizer
+            doStartListening()
+        } else {
+            // Start in passive mode (no audio focus, no media interference)
+            startPassiveListening()
+        }
     }
 
     private fun doStartListening() {
@@ -169,6 +350,7 @@ class GoogleVoiceCommandManager(private val context: Context) {
             speechRecognizer?.startListening(buildIntent())
             isListening = true
             isPaused = false
+            isPassiveMode = false
 
             val icon = if (offlineLevel == 0) "🌐" else "📴"
             updateStatus("$icon Listening — speak now")
@@ -191,7 +373,6 @@ class GoogleVoiceCommandManager(private val context: Context) {
             putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayListOf("hi-IN", "en-IN"))
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            // For offline levels 1 and 2, add prefer_offline flag
             if (offlineLevel >= 1) {
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
@@ -200,22 +381,28 @@ class GoogleVoiceCommandManager(private val context: Context) {
 
     fun stopListening() {
         shouldKeepListening = false
+        forceActiveMode = false
         isListening = false
         isPaused = false
         mainHandler.removeCallbacksAndMessages(null)
         networkHandler.removeCallbacksAndMessages(null)
         unregisterNetworkCallback()
+        stopPassiveListening()
         destroyRecognizer()
         updateStatus("🔇 Stopped")
         listener?.onListeningStopped()
     }
 
     fun pauseListening() {
-        if (!isListening && !shouldKeepListening) return
+        if (!isListening && !shouldKeepListening && !isPassiveMode) return
         isPaused = true
         shouldKeepListening = false
         mainHandler.removeCallbacksAndMessages(null)
-        try { speechRecognizer?.stopListening() } catch (_: Exception) {}
+        if (isPassiveMode) {
+            stopPassiveListening()
+        } else {
+            try { speechRecognizer?.stopListening() } catch (_: Exception) {}
+        }
     }
 
     fun resumeListening() {
@@ -223,7 +410,14 @@ class GoogleVoiceCommandManager(private val context: Context) {
         isPaused = false
         shouldKeepListening = true
         isListening = false
-        mainHandler.postDelayed({ doStartListening() }, 400)
+
+        mainHandler.postDelayed({
+            if (forceActiveMode) {
+                doStartListening()
+            } else {
+                startPassiveListening()
+            }
+        }, 400)
     }
 
     fun destroy() {
@@ -272,8 +466,14 @@ class GoogleVoiceCommandManager(private val context: Context) {
             when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH,
                 SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                    // Normal silence — just restart
                     consecutiveErrors = 0
+                    // If not in forced active mode, go back to passive (save battery, no focus)
+                    if (!forceActiveMode) {
+                        isListening = false
+                        destroyRecognizer()
+                        startPassiveListening()
+                        return
+                    }
                     val icon = if (offlineLevel == 0) "🌐" else "📴"
                     updateStatus("$icon Listening...")
                     restartListening(150)
@@ -282,7 +482,6 @@ class GoogleVoiceCommandManager(private val context: Context) {
                 SpeechRecognizer.ERROR_NETWORK,
                 SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
                 SpeechRecognizer.ERROR_SERVER -> {
-                    // Network gone — escalate offline level
                     if (offlineLevel == 0) {
                         offlineLevel = 1
                         error13Count = 0
@@ -290,12 +489,10 @@ class GoogleVoiceCommandManager(private val context: Context) {
                         updateStatus("📴 Offline — trying prefer_offline...")
                         Log.i(TAG, "Network error → escalate to Level 2 (prefer_offline)")
                     } else if (offlineLevel == 1) {
-                        // prefer_offline also failed → try on-device
                         offlineLevel = 2
                         updateStatus("📴 Offline — trying on-device...")
                         Log.i(TAG, "prefer_offline failed → escalate to Level 3 (on-device)")
                     } else {
-                        // All levels failed — stay at level 2, keep trying
                         updateStatus("📴 Offline — retrying...")
                     }
                     restartListening(800)
@@ -315,25 +512,21 @@ class GoogleVoiceCommandManager(private val context: Context) {
                 }
 
                 13 -> {
-                    // Error 13 (InsufficientPermissions / on-device not ready)
                     error13Count++
                     Log.w(TAG, "Error 13  (#$error13Count) offlineLevel=$offlineLevel")
                     when {
                         offlineLevel >= 2 && error13Count <= 3 -> {
-                            // On-device not ready yet — retry with backoff
                             val delay = error13Count * 2000L
                             updateStatus("📴 Offline — warming up ($error13Count/3)...")
                             restartListening(delay)
                         }
                         offlineLevel >= 2 && error13Count > 3 -> {
-                            // On-device truly unavailable — fall back to prefer_offline
                             offlineLevel = 1
                             error13Count = 0
                             updateStatus("📴 Offline — prefer_offline mode...")
                             restartListening(1000)
                         }
                         offlineLevel == 1 && error13Count > 3 -> {
-                            // prefer_offline also getting Error 13 — try on-device
                             offlineLevel = 2
                             error13Count = 0
                             updateStatus("📴 Offline — switching engine...")
@@ -369,7 +562,21 @@ class GoogleVoiceCommandManager(private val context: Context) {
                     }
                 }
             }
-            if (shouldKeepListening) restartListening(150) else isListening = false
+
+            if (!shouldKeepListening) {
+                isListening = false
+                return
+            }
+
+            if (forceActiveMode) {
+                // Stay in active mode — restart SpeechRecognizer
+                restartListening(150)
+            } else {
+                // Go back to passive mode (no audio focus)
+                isListening = false
+                destroyRecognizer()
+                startPassiveListening()
+            }
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
@@ -391,10 +598,6 @@ class GoogleVoiceCommandManager(private val context: Context) {
             if (!shouldKeepListening) return@postDelayed
             if (ttsCheckCallback?.invoke() == true) {
                 restartListening(500); return@postDelayed
-            }
-            // Speaker rejection — skip listen if media is playing on speaker
-            if (!speakerDetection.shouldListen()) {
-                restartListening(1000); return@postDelayed
             }
             doStartListening()
         }, delayMs)
