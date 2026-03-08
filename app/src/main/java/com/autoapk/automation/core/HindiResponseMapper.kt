@@ -214,7 +214,67 @@ object HindiResponseMapper {
         "person" to "व्यक्ति को",
         "I need to slow down a bit. Try again in a few seconds." to "मुझे थोड़ा धीमा करना होगा। कुछ सेकंड बाद फिर से कोशिश करें।",
         "I'm having trouble connecting to my vision service." to "विज़न सेवा से जुड़ने में परेशानी हो रही है।",
-        "Please check your internet connection." to "कृपया अपना इंटरनेट कनेक्शन चेक करें."
+        "Please check your internet connection." to "कृपया अपना इंटरनेट कनेक्शन चेक करें.",
+
+        // === IN-APP SEARCH ===
+        "Searching on YouTube" to "यूट्यूब पर खोज रहे हैं",
+        "Searching on Instagram" to "इंस्टाग्राम पर खोज रहे हैं",
+        "Searching on Play Store" to "प्ले स्टोर पर खोज रहे हैं",
+        "Searching in" to "इसमें खोज रहे हैं",
+        "No search found in" to "इसमें सर्च नहीं मिला",
+        "searching on Google" to "गूगल पर खोज रहे हैं",
+
+        // === CALL / ANSWER ===
+        "Answering call" to "कॉल उठा रहे हैं",
+        "Speaker on" to "स्पीकर चालू",
+        "Could not answer call" to "कॉल नहीं उठा सकते",
+        "Call permission not granted" to "कॉल की अनुमति नहीं है",
+        "is calling you" to "आपको कॉल कर रहा है",
+
+        // === RAPIDO RIDE BOOKING ===
+        "Opening Rapido" to "रैपिडो खोल रहे हैं",
+        "Rapido is not installed" to "रैपिडो इंस्टॉल नहीं है",
+        "Where do you want to go?" to "आप कहाँ जाना चाहते हैं?",
+        "Is this correct?" to "क्या यह सही है?",
+        "Which one?" to "कौन सा?",
+        "Searching" to "खोज रहे हैं",
+        "Destination selected" to "जगह चुन ली",
+        "Pickup is" to "पिकअप है",
+        "Could not find" to "नहीं मिला",
+        "Please try again." to "कृपया फिर से कोशिश करें।",
+        "No results found for" to "कोई नतीजा नहीं मिला",
+        "Please say the destination again." to "कृपया जगह का नाम दोबारा बोलें।",
+        "Could not select destination. Please try again." to "जगह चुनने में विफल। कृपया दोबारा कोशिश करें।",
+        "Ride options are loading. Please wait." to "राइड ऑप्शन लोड हो रहे हैं। कृपया रुकें।",
+        "Could not read ride options. Please select manually in Rapido." to "राइड ऑप्शन नहीं पढ़ सके। कृपया रैपिडो में खुद चुनें।",
+        "Which one? Bike, Auto, or Cab?" to "कौन सा? बाइक, ऑटो, या कैब?",
+        "selected." to "चुन लिया।",
+        "Should I book?" to "बुक करूं?",
+        "Could not select" to "चुन नहीं सके",
+        "Please say Bike, Auto, or Cab." to "कृपया बाइक, ऑटो, या कैब बोलें।",
+        "Ride booked! Finding your captain." to "राइड बुक हो गई! कैप्टन ढूंढ रहे हैं।",
+        "Could not confirm booking. Please try tapping the book button manually." to "बुकिंग कन्फर्म नहीं हो पाई। कृपया बुक बटन खुद दबाएं।",
+        "Booking not confirmed. Say yes to book or cancel to stop." to "बुकिंग कन्फर्म नहीं हुई। बुक करने के लिए हां बोलें या कैंसल बोलें।",
+        "Rapido booking cancelled" to "रैपिडो बुकिंग कैंसल की",
+        "Captain found!" to "कैप्टन मिल गया!",
+        "Captain" to "कैप्टन",
+        "Arriving in" to "आ रहे हैं",
+        "Vehicle" to "गाड़ी",
+        "Your PIN is" to "आपका पिन है",
+        "Your Rapido PIN is" to "आपका रैपिडो पिन है",
+        "PIN not visible on screen. Please open Rapido first." to "पिन स्क्रीन पर नहीं दिख रहा। कृपया पहले रैपिडो खोलें।",
+        "Cancelling ride" to "राइड कैंसल कर रहे हैं",
+        "Ride cancelled" to "राइड कैंसल हो गई",
+        "Could not cancel ride. Please cancel manually." to "राइड कैंसल नहीं हो पाई। कृपया खुद कैंसल करें।",
+        "No active Rapido booking to cancel" to "कोई एक्टिव रैपिडो बुकिंग नहीं है",
+        "Still searching for captain. Please check Rapido app." to "अभी भी कैप्टन ढूंढ रहे हैं। कृपया रैपिडो ऐप चेक करें।",
+        "Captain assigned. Please check Rapido for details." to "कैप्टन मिल गया। कृपया डिटेल्स रैपिडो ऐप में देखें।",
+        "Could not open Rapido" to "रैपिडो नहीं खुल सका",
+        "Could not find search field in Rapido" to "रैपिडो में सर्च फील्ड नहीं मिला",
+        "Please change pickup location in Rapido app, then tell me when ready." to "कृपया रैपिडो ऐप में पिकअप लोकेशन बदलें, फिर मुझे बताएं।",
+
+        // === VOLUME ===
+        "Volume adjusted" to "आवाज़ ठीक की"
     )
 
     /**

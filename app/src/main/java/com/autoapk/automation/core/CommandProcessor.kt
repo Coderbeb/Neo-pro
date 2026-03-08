@@ -37,7 +37,9 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     private val commandMemory = CommandMemory(context)
     
     // Phone state detector — monitors state for verification requirements
-    private val stateDetector = PhoneStateDetector(context)
+    private val stateDetector = PhoneStateDetector(context).also {
+        it.contactRegistry = contactRegistry
+    }
     
     // Verification system — manages verification codes and validation
     private val verificationSystem = VerificationSystem(context)
@@ -62,6 +64,8 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 phoneStateDetector = stateDetector
             )
         }
+        // Sync language mode on every call
+        visionOrchestrator?.isHindiMode = service?.isHindiMode == true
         return visionOrchestrator!!
     }
 
@@ -120,6 +124,22 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     private var navigationState = NavigationState.NONE
     private var pendingDestination: String = ""
     private var navigationMode: String = "d" // d=driving, w=walking, b=bicycling, r=transit
+
+    // === RAPIDO RIDE BOOKING STATE ===
+    private enum class RapidoState {
+        NONE,
+        WAITING_FOR_DESTINATION,
+        CONFIRMING_DESTINATION,
+        CONFIRMING_PICKUP,
+        SELECTING_RIDE_TYPE,
+        CONFIRMING_BOOKING
+    }
+    private var rapidoState = RapidoState.NONE
+    private var rapidoPendingDestination: String = ""
+    private var rapidoSuggestions: List<String> = emptyList()
+    private var rapidoSelectedRideType: String = ""
+    private var rapidoSelectedFare: String = ""
+    private val rapidoAutomation by lazy { RapidoAutomation(context) }
 
     // Initialize call state by checking if there's actually an active call
     init {
@@ -206,8 +226,8 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         val translated = HindiCommandMapper.translate(rawCommand)
         val preProcessed = InputPreProcessor.preProcess(translated)
         
-        // Auto-detect Hindi: if translation changed the command, user spoke Hindi/Hinglish
-        val isHindiInput = translated.lowercase().trim() != rawCommand.lowercase().trim()
+        // Auto-detect Hindi: check if translation changed OR if raw input contains Hindi indicators
+        val isHindiInput = isHindiDetected(rawCommand, translated)
         service?.isHindiMode = isHindiInput
         
         Log.i("Neo_CMD", "Process: raw='$rawCommand' → translated='$preProcessed' (hindi=$isHindiInput)")
@@ -309,8 +329,12 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 // Sleeping and no wake word found — silently ignore
                 return false
             }
+            if (filtered.isEmpty()) {
+                // Just "Neo" spoken — woke up, no command to process
+                return true
+            }
             // Wake word was found and stripped, or already ACTIVE
-            commandToProcess = if (filtered.isBlank()) rawCommand else filtered
+            commandToProcess = filtered
         } else {
             // No state manager — process everything (fallback)
             commandToProcess = rawCommand
@@ -348,6 +372,10 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             pendingConfirmationParam = ""
             navigationState = NavigationState.NONE
             pendingDestination = ""
+            rapidoState = RapidoState.NONE
+            rapidoPendingDestination = ""
+            rapidoSuggestions = emptyList()
+            rapidoSelectedRideType = ""
             isOnActiveCall = false
             service?.speak("Stopped")
             return true
@@ -377,6 +405,10 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             pendingConfirmationParam = ""
             navigationState = NavigationState.NONE
             pendingDestination = ""
+            rapidoState = RapidoState.NONE
+            rapidoPendingDestination = ""
+            rapidoSuggestions = emptyList()
+            rapidoSelectedRideType = ""
             isOnActiveCall = false
             service?.speak("Stopped")
             lastProcessedCommand = command
@@ -419,6 +451,13 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             lastProcessedCommand = command
             lastProcessedTime = timestamp
             return handleNavigationState(command)
+        }
+
+        // === RAPIDO STATE MACHINE ===
+        if (rapidoState != RapidoState.NONE) {
+            lastProcessedCommand = command
+            lastProcessedTime = timestamp
+            return handleRapidoState(command)
         }
 
         // === CONFIRMATION STATE (confidence levels) ===
@@ -511,23 +550,36 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         // === LAYER 3: CONTACT NAME FALLBACK ===
         // If no command matched, check if the input is a contact name
         // This allows "Nitish bhaiya" to work without saying "call" first
-        val contactMatch = contactRegistry.findContact(command)
-        if (contactMatch != null && contactMatch.score >= 40) {
-            Log.i(TAG, "Fallback: Detected contact name '$command' → calling ${contactMatch.name} (score=${contactMatch.score})")
-            service?.speak("Calling ${contactMatch.name}")
-            return try {
-                val intent = Intent(Intent.ACTION_CALL).apply {
-                    data = android.net.Uri.parse("tel:${contactMatch.number}")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        // Blocklist: words that should NEVER trigger a contact call
+        val contactBlocklist = setOf(
+            "setting", "settings", "open", "close", "search", "play", "pause", "stop",
+            "volume", "mute", "unmute", "next", "previous", "back", "home",
+            "recents", "recent", "quick", "notification", "notifications",
+            "scroll", "swipe", "bluetooth", "wifi", "data", "flashlight",
+            "camera", "brightness", "timer", "alarm", "screenshot",
+            "battery", "time", "date", "weather", "navigate", "direction",
+            "lock", "unlock", "fullscreen", "vision", "describe", "read",
+            "rapido", "ride", "book", "pin", "cancel", "auto", "bike", "cab"
+        )
+        if (command.lowercase() !in contactBlocklist) {
+            val contactMatch = contactRegistry.findContact(command)
+            if (contactMatch != null && contactMatch.score >= 65) {
+                Log.i(TAG, "Fallback: Detected contact name '$command' → calling ${contactMatch.name} (score=${contactMatch.score})")
+                service?.speak("Calling ${contactMatch.name}")
+                return try {
+                    val intent = Intent(Intent.ACTION_CALL).apply {
+                        data = android.net.Uri.parse("tel:${contactMatch.number}")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    isOnActiveCall = true
+                    lastProcessedCommand = command
+                    lastProcessedTime = timestamp
+                    true
+                } catch (e: SecurityException) {
+                    service?.speak("Call permission not granted")
+                    false
                 }
-                context.startActivity(intent)
-                isOnActiveCall = true
-                lastProcessedCommand = command
-                lastProcessedTime = timestamp
-                true
-            } catch (e: SecurityException) {
-                service?.speak("Call permission not granted")
-                false
             }
         }
 
@@ -848,16 +900,42 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             // === PHONE CALLS ===
             SmartCommandMatcher.CommandIntent.TOGGLE_SPEAKER -> toggleSpeaker()
             SmartCommandMatcher.CommandIntent.CALL_CONTACT -> {
-                val input = param.ifBlank {
+                var input = param.ifBlank {
                     command.replace("call", "").replace("dial", "").replace("phone", "").trim()
                 }
-                if (input.any { it.isDigit() }) makePhoneCall(input) else callByContactName(input)
+                // Check for "in speaker" / "on speaker" suffix
+                val wantSpeaker = input.contains(Regex("(?i)\\s+(in|on)\\s+speaker"))
+                input = input.replace(Regex("(?i)\\s+(in|on)\\s+speaker"), "").trim()
+                
+                val callResult = if (input.any { it.isDigit() }) makePhoneCall(input) else callByContactName(input)
+                if (callResult && wantSpeaker) {
+                    // Auto-enable speaker after a short delay for the call to connect
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                        audioManager.isSpeakerphoneOn = true
+                        audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+                        service?.speak("Speaker on")
+                    }, 2000)
+                }
+                callResult
             }
 
             // === ANSWER CALL (set active call state) ===
             SmartCommandMatcher.CommandIntent.ANSWER_CALL -> {
                 val result = answerCall()
-                if (result) isOnActiveCall = true
+                if (result) {
+                    isOnActiveCall = true
+                    // Check for "in speaker" / "on speaker"
+                    val wantSpeaker = command.contains(Regex("(?i)(in|on)\\s+speaker"))
+                    if (wantSpeaker) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                            audioManager.isSpeakerphoneOn = true
+                            audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+                            service?.speak("Speaker on")
+                        }, 2000)
+                    }
+                }
                 result
             }
             SmartCommandMatcher.CommandIntent.END_CALL -> {
@@ -947,25 +1025,89 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 val query = param.ifBlank {
                     command.replace("search", "").replace("google", "").replace("for", "").replace("on", "").trim()
                 }
-                // Check if we are inside an app
-                val currentApp = (navigationContext.getCurrentApp() ?: "").lowercase()
-                if (currentApp.isNotBlank() && !currentApp.contains("launcher") && !currentApp.contains("home")) {
-                    // In-app search using smart element finder
-                    service?.speak("Searching in $currentApp")
-                    // Click search icon/bar using fuzzy finder
-                    val clicked = service?.findAndClickSmart("search") ?: false
-                    if (clicked && query.isNotBlank()) {
-                        // Wait for search field to appear, then type
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            service?.findAndFocusTextField()
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                service?.inputText(query)
-                            }, 300)
-                        }, 500)
+                // Check the ACTUAL foreground app via accessibility (not navigationContext)
+                val currentPkg = service?.rootInActiveWindow?.packageName?.toString()?.lowercase() ?: ""
+                val currentAppName = service?.getCurrentAppName() ?: ""
+                val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                
+                when {
+                    // YouTube is open — use YouTube search
+                    currentPkg.contains("youtube") -> {
+                        service?.speak("Searching on YouTube")
+                        if (query.isNotBlank()) {
+                            handler.postDelayed({
+                                service?.findAndClickSmart("Search", silent = true)
+                                handler.postDelayed({
+                                    service?.findAndFocusTextField()
+                                    handler.postDelayed({
+                                        service?.inputText(query)
+                                    }, 300)
+                                }, 600)
+                            }, 200)
+                        }
+                        true
                     }
-                    true
-                } else {
-                    searchOnGoogle(query)
+                    // Instagram is open — use in-app search
+                    currentPkg.contains("instagram") -> {
+                        service?.speak("Searching on Instagram")
+                        handler.postDelayed({
+                            val svc = service ?: return@postDelayed
+                            val clicked = svc.findAndClickSmart("Search", silent = true) 
+                                || svc.findAndClickSmart("Explore", silent = true)
+                            if (clicked) {
+                                handler.postDelayed({
+                                    svc.findAndFocusTextField()
+                                    handler.postDelayed({
+                                        if (query.isNotBlank()) svc.inputText(query)
+                                    }, 300)
+                                }, 600)
+                            }
+                        }, 200)
+                        true
+                    }
+                    // Play Store is open
+                    currentPkg.contains("vending") || currentPkg.contains("play.store") -> {
+                        service?.speak("Searching on Play Store")
+                        handler.postDelayed({
+                            val svc = service ?: return@postDelayed
+                            svc.findAndClickSmart("Search", silent = true)
+                            handler.postDelayed({
+                                svc.findAndFocusTextField()
+                                handler.postDelayed({
+                                    if (query.isNotBlank()) svc.inputText(query)
+                                }, 300)
+                            }, 600)
+                        }, 200)
+                        true
+                    }
+                    // Any other non-home app — try generic in-app search
+                    currentPkg.isNotBlank() && !currentPkg.contains("launcher") && 
+                    !currentPkg.contains("home") && !currentPkg.contains("systemui") -> {
+                        val appName = if (currentAppName.isNotBlank() && currentAppName != "unknown") 
+                            currentAppName else "this app"
+                        service?.speak("Searching in $appName")
+                        handler.postDelayed({
+                            val svc = service ?: return@postDelayed
+                            val clicked = svc.findAndClickSmart("search", silent = true)
+                                || svc.findAndClickSmart("Search", silent = true)
+                            if (clicked && query.isNotBlank()) {
+                                handler.postDelayed({
+                                    svc.findAndFocusTextField()
+                                    handler.postDelayed({
+                                        svc.inputText(query)
+                                    }, 300)
+                                }, 600)
+                            } else if (!clicked) {
+                                svc.speak("No search found in $appName, searching on Google")
+                                searchOnGoogle(query)
+                            }
+                        }, 200)
+                        true
+                    }
+                    // On home/launcher — default to Google
+                    else -> {
+                        searchOnGoogle(query)
+                    }
                 }
             }
 
@@ -1118,6 +1260,20 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                     navigationState = NavigationState.WAITING_FOR_DESTINATION
                     service?.speak("Where do you want to go?")
                 }
+                true
+            }
+
+            // === RAPIDO RIDE BOOKING ===
+            SmartCommandMatcher.CommandIntent.BOOK_RAPIDO -> {
+                handleBookRapido(param)
+                true
+            }
+            SmartCommandMatcher.CommandIntent.READ_RAPIDO_PIN -> {
+                handleReadRapidoPin()
+                true
+            }
+            SmartCommandMatcher.CommandIntent.CANCEL_RAPIDO -> {
+                handleCancelRapido()
                 true
             }
 
@@ -1290,6 +1446,314 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         }
     }
 
+    // ==================== RAPIDO RIDE BOOKING ====================
+
+    /**
+     * Handle the BOOK_RAPIDO intent.
+     * Opens Rapido and starts the booking flow.
+     * If a destination is provided (e.g., "book rapido to airport"), searches directly.
+     */
+    private fun handleBookRapido(destination: String) {
+        Log.i(TAG, "RAPIDO: Starting booking flow. destination='$destination'")
+
+        if (!rapidoAutomation.openApp()) {
+            service?.speak("Rapido is not installed")
+            return
+        }
+
+        service?.speak("Opening Rapido")
+
+        if (destination.isNotBlank()) {
+            // User said "book rapido to [place]" — search directly after app opens
+            rapidoPendingDestination = destination
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            handler.postDelayed({
+                rapidoAutomation.searchDestination(destination) { suggestions ->
+                    rapidoSuggestions = suggestions
+                    if (suggestions.isEmpty()) {
+                        service?.speak("Could not find $destination. Please try again.")
+                        rapidoState = RapidoState.WAITING_FOR_DESTINATION
+                    } else if (suggestions.size == 1) {
+                        // Only one suggestion — confirm it
+                        service?.speak("${suggestions[0]}. Is this correct?")
+                        rapidoState = RapidoState.CONFIRMING_DESTINATION
+                    } else {
+                        // Multiple — ask which one
+                        val msg = StringBuilder()
+                        for ((i, s) in suggestions.withIndex()) {
+                            msg.append("${i + 1}. $s. ")
+                        }
+                        msg.append("Which one?")
+                        service?.speak(msg.toString())
+                        rapidoState = RapidoState.CONFIRMING_DESTINATION
+                    }
+                }
+            }, 3000) // Wait 3s for Rapido to fully load
+        } else {
+            // Just "open rapido" — ask for destination
+            rapidoState = RapidoState.WAITING_FOR_DESTINATION
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            handler.postDelayed({
+                service?.speak("Where do you want to go?")
+            }, 2500)
+        }
+    }
+
+    /**
+     * Handle the READ_RAPIDO_PIN intent.
+     * Reads the Rapid PIN from the current screen.
+     */
+    private fun handleReadRapidoPin() {
+        Log.i(TAG, "RAPIDO: Reading PIN")
+        val pin = rapidoAutomation.readPin()
+        if (pin != null) {
+            service?.speak("Your Rapido PIN is $pin")
+        } else {
+            service?.speak("PIN not visible on screen. Please open Rapido first.")
+        }
+    }
+
+    /**
+     * Handle the CANCEL_RAPIDO intent.
+     * Cancels the current ride or resets booking state.
+     */
+    private fun handleCancelRapido() {
+        Log.i(TAG, "RAPIDO: Cancelling")
+
+        // If in a booking flow state, just reset
+        if (rapidoState != RapidoState.NONE) {
+            rapidoState = RapidoState.NONE
+            rapidoPendingDestination = ""
+            rapidoSuggestions = emptyList()
+            rapidoSelectedRideType = ""
+            rapidoSelectedFare = ""
+            service?.speak("Rapido booking cancelled")
+            return
+        }
+
+        // If Rapido is in foreground, try to cancel the active ride
+        if (rapidoAutomation.isRapidoInForeground()) {
+            service?.speak("Cancelling ride")
+            rapidoAutomation.cancelRide { success ->
+                if (success) {
+                    service?.speak("Ride cancelled")
+                } else {
+                    service?.speak("Could not cancel ride. Please cancel manually.")
+                }
+            }
+        } else {
+            service?.speak("No active Rapido booking to cancel")
+        }
+    }
+
+    /**
+     * Rapido conversational state machine.
+     * Handles all intermediate states of the booking flow.
+     */
+    private fun handleRapidoState(command: String): Boolean {
+        val cancelWords = setOf("cancel", "no", "nahi", "nah", "na", "mat", "chhodo", "band",
+            "रद्द", "नहीं", "मत", "छोड़ो", "बंद", "stop", "ruk", "back")
+        val yesWords = setOf("yes", "haan", "ha", "han", "ok", "okay", "sure", "theek", "sahi",
+            "right", "correct", "book", "confirm",
+            "हां", "ठीक", "सही", "बुक", "कन्फर्म")
+
+        // Cancel at any state
+        if (cancelWords.any { command.contains(it) }) {
+            rapidoState = RapidoState.NONE
+            rapidoPendingDestination = ""
+            rapidoSuggestions = emptyList()
+            rapidoSelectedRideType = ""
+            rapidoSelectedFare = ""
+            service?.speak("Rapido booking cancelled")
+            return true
+        }
+
+        when (rapidoState) {
+            RapidoState.WAITING_FOR_DESTINATION -> {
+                // User says the destination name
+                rapidoPendingDestination = command.trim()
+                service?.speak("Searching $rapidoPendingDestination")
+
+                rapidoAutomation.searchDestination(rapidoPendingDestination) { suggestions ->
+                    rapidoSuggestions = suggestions
+                    if (suggestions.isEmpty()) {
+                        service?.speak("No results found for $rapidoPendingDestination. Please say the destination again.")
+                        // Stay in WAITING_FOR_DESTINATION
+                    } else if (suggestions.size == 1) {
+                        service?.speak("${suggestions[0]}. Is this correct?")
+                        rapidoState = RapidoState.CONFIRMING_DESTINATION
+                    } else {
+                        val msg = StringBuilder()
+                        for ((i, s) in suggestions.withIndex()) {
+                            msg.append("${i + 1}. $s. ")
+                        }
+                        msg.append("Which one?")
+                        service?.speak(msg.toString())
+                        rapidoState = RapidoState.CONFIRMING_DESTINATION
+                    }
+                }
+                return true
+            }
+
+            RapidoState.CONFIRMING_DESTINATION -> {
+                // User confirms destination or picks from options
+                val selected = rapidoAutomation.selectSuggestion(command, rapidoSuggestions)
+                if (selected) {
+                    service?.speak("Destination selected")
+
+                    // Wait for ride options to load, read pickup location
+                    val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                    handler.postDelayed({
+                        val pickup = rapidoAutomation.readPickupLocation()
+                        service?.speak("Pickup is $pickup. Is this correct?")
+                        rapidoState = RapidoState.CONFIRMING_PICKUP
+                    }, 2500)
+                } else {
+                    service?.speak("Could not select destination. Please try again.")
+                    rapidoState = RapidoState.WAITING_FOR_DESTINATION
+                }
+                return true
+            }
+
+            RapidoState.CONFIRMING_PICKUP -> {
+                if (yesWords.any { command.contains(it) }) {
+                    // Pickup confirmed — read ride options
+                    val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                    handler.postDelayed({
+                        val rideOptions = rapidoAutomation.readRideOptions()
+                        if (rideOptions.isEmpty()) {
+                            service?.speak("Ride options are loading. Please wait.")
+                            // Retry after a delay
+                            handler.postDelayed({
+                                val retryOptions = rapidoAutomation.readRideOptions()
+                                announceRideOptions(retryOptions)
+                            }, 3000)
+                        } else {
+                            announceRideOptions(rideOptions)
+                        }
+                    }, 1500)
+                } else {
+                    // User wants to change pickup
+                    service?.speak("Please change pickup location in Rapido app, then tell me when ready.")
+                    // Stay in CONFIRMING_PICKUP to wait for user to say "ok" / "done" / "ready"
+                }
+                return true
+            }
+
+            RapidoState.SELECTING_RIDE_TYPE -> {
+                // User says "bike", "auto", or "cab"
+                val rideType = extractRideType(command)
+                if (rideType != null) {
+                    rapidoSelectedRideType = rideType
+                    val selected = rapidoAutomation.selectRideType(rideType)
+                    if (selected) {
+                        // Read fare for selected ride
+                        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                        handler.postDelayed({
+                            val options = rapidoAutomation.readRideOptions()
+                            val matchedFare = options.find { it.type.contains(rideType, ignoreCase = true) }?.fare ?: ""
+                            rapidoSelectedFare = matchedFare
+                            service?.speak("$rideType selected. $matchedFare. Should I book?")
+                            rapidoState = RapidoState.CONFIRMING_BOOKING
+                        }, 1500)
+                    } else {
+                        service?.speak("Could not select $rideType. Please try again.")
+                    }
+                } else {
+                    service?.speak("Please say Bike, Auto, or Cab.")
+                }
+                return true
+            }
+
+            RapidoState.CONFIRMING_BOOKING -> {
+                if (yesWords.any { command.contains(it) }) {
+                    // Confirm booking
+                    val booked = rapidoAutomation.confirmBooking(rapidoSelectedRideType)
+                    if (booked) {
+                        service?.speak("Ride booked! Finding your captain.")
+
+                        // Poll for captain details
+                        pollForCaptain(0)
+                    } else {
+                        service?.speak("Could not confirm booking. Please try tapping the book button manually.")
+                    }
+                    rapidoState = RapidoState.NONE
+                } else {
+                    service?.speak("Booking not confirmed. Say yes to book or cancel to stop.")
+                }
+                return true
+            }
+
+            RapidoState.NONE -> return false
+        }
+    }
+
+    /**
+     * Announce ride options to the user and move to SELECTING_RIDE_TYPE state.
+     */
+    private fun announceRideOptions(options: List<RapidoAutomation.RideOption>) {
+        if (options.isEmpty()) {
+            service?.speak("Could not read ride options. Please select manually in Rapido.")
+            rapidoState = RapidoState.NONE
+            return
+        }
+
+        val msg = StringBuilder()
+        for (option in options) {
+            msg.append("${option.type} ${option.fare}. ")
+        }
+        msg.append("Which one? Bike, Auto, or Cab?")
+        service?.speak(msg.toString())
+        rapidoState = RapidoState.SELECTING_RIDE_TYPE
+    }
+
+    /**
+     * Extract ride type from user's command.
+     */
+    private fun extractRideType(command: String): String? {
+        val lower = command.lowercase()
+        return when {
+            lower.contains("bike") -> "Bike"
+            lower.contains("auto") -> "Auto"
+            lower.contains("cab") || lower.contains("car") -> "Cab"
+            lower.contains("ऑटो") -> "Auto"
+            lower.contains("बाइक") -> "Bike"
+            lower.contains("कैब") || lower.contains("कार") -> "Cab"
+            else -> null
+        }
+    }
+
+    /**
+     * Poll for captain assignment after booking.
+     * Checks every 5 seconds, up to 6 attempts (30 seconds).
+     */
+    private fun pollForCaptain(attempt: Int) {
+        if (attempt >= 6) {
+            service?.speak("Still searching for captain. Please check Rapido app.")
+            return
+        }
+
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        handler.postDelayed({
+            if (rapidoAutomation.isCaptainAssigned()) {
+                val details = rapidoAutomation.readCaptainDetails()
+                if (details != null) {
+                    val msg = StringBuilder("Captain found! ")
+                    if (details.name.isNotBlank()) msg.append("Captain ${details.name}. ")
+                    if (details.eta.isNotBlank()) msg.append("Arriving in ${details.eta}. ")
+                    if (details.vehicleNumber.isNotBlank()) msg.append("Vehicle ${details.vehicleNumber}. ")
+                    if (details.pin.isNotBlank()) msg.append("Your PIN is ${details.pin}.")
+                    service?.speak(msg.toString())
+                } else {
+                    service?.speak("Captain assigned. Please check Rapido for details.")
+                }
+            } else {
+                // Keep polling
+                pollForCaptain(attempt + 1)
+            }
+        }, 5000)
+    }
+
     /**
      * Open Google Maps app.
      */
@@ -1383,30 +1847,62 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
         handler.postDelayed({
             var clicked = false
-            // Try each possible tile label until one matches
+            // Try each possible tile label on PAGE 1 (silent = no error TTS per label)
             for (label in tileLabels) {
-                if (svc.findAndClickSmart(label)) {
+                if (svc.findAndClickSmart(label, silent = true)) {
                     clicked = true
-                    Log.i(TAG, "QS Toggle: Clicked '$label' tile for $name")
+                    Log.i(TAG, "QS Toggle: Clicked '$label' tile for $name (page 1)")
                     break
                 }
             }
 
-            if (clicked) {
-                svc.speak("$name ${if (enabled) "turned on" else "turned off"}")
-            } else {
-                svc.speak("Could not find $name tile in quick settings")
-            }
+            if (!clicked) {
+                // PAGE 1 failed — swipe RIGHT to check page 2
+                Log.i(TAG, "QS Toggle: '$name' not found on page 1, swiping to page 2")
+                val startX = svc.screenWidth * 0.8f
+                val endX = svc.screenWidth * 0.2f
+                val y = svc.screenHeight * 0.35f  // QS tiles are in the upper portion
+                val path = android.graphics.Path().apply {
+                    moveTo(startX, y)
+                    lineTo(endX, y)
+                }
+                val gesture = android.accessibilityservice.GestureDescription.Builder()
+                    .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 250))
+                    .build()
+                svc.dispatchGesture(gesture, null, null)
 
-            // Step 3: Dismiss QS panel — two goBack() to return to original app/screen
-            // 1st goBack: QS tiles → notification shade
-            // 2nd goBack: notification shade → original screen
-            handler.postDelayed({
-                svc.goBack()
+                // Wait for page 2 to render, then retry
+                handler.postDelayed({
+                    for (label in tileLabels) {
+                        if (svc.findAndClickSmart(label, silent = true)) {
+                            clicked = true
+                            Log.i(TAG, "QS Toggle: Clicked '$label' tile for $name (page 2)")
+                            break
+                        }
+                    }
+
+                    if (clicked) {
+                        svc.speak("$name ${if (enabled) "turned on" else "turned off"}")
+                    } else {
+                        // Only ONE error message for all failed attempts
+                        svc.speak("Could not find $name in quick settings")
+                    }
+
+                    // Dismiss QS panel
+                    handler.postDelayed({
+                        svc.goBack()
+                        handler.postDelayed({ svc.goBack() }, 500)
+                    }, 500)
+                }, 600) // Wait for swipe animation
+            } else {
+                svc.speak("$name ${if (enabled) "turned on" else "turned off"}")
+
+                // Step 3: Dismiss QS panel
                 handler.postDelayed({
                     svc.goBack()
+                    handler.postDelayed({ svc.goBack() }, 500)
                 }, 500)
-            }, 500)
+            }
         }, 800) // Wait 800ms for QS panel to fully load
 
         return true
@@ -1580,6 +2076,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
 
     private fun answerCall(): Boolean {
         callManager.answerCall()
+        service?.speak("Answering call")
         return true
     }
 
@@ -2622,5 +3119,106 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             // Not initialized yet — model will be read from SharedPreferences on first use
             com.autoapk.automation.vision.GeminiVisionService.setSelectedModel(context, modelId)
         }
+    }
+
+    /**
+     * Stop vision auto-describe/navigation if running.
+     * Called from MainActivity's Stop All button.
+     */
+    fun stopVisionWatching() {
+        if (visionOrchestrator != null) {
+            visionOrchestrator?.stopAutoDescribe()
+            visionOrchestrator?.stopNavigation()
+            visionOrchestrator?.cancelCurrentDescription()
+        }
+    }
+
+    // ==================== LANGUAGE DETECTION ====================
+
+    /**
+     * Detect whether the user's input is Hindi/Hinglish.
+     * Uses 3 indicators:
+     * 1. HindiCommandMapper translation changed the text
+     * 2. Devanagari script characters present
+     * 3. Common romanized Hindi words detected
+     */
+    private fun isHindiDetected(rawInput: String, translated: String): Boolean {
+        val raw = rawInput.lowercase().trim()
+        
+        // Check 1: Translation mapper changed the text → definitely Hindi
+        if (translated.lowercase().trim() != raw) return true
+        
+        // Check 2: Devanagari script present
+        if (raw.any { it in '\u0900'..'\u097F' }) return true
+        
+        // Check 3: Common romanized Hindi words
+        val hindiWords = setOf(
+            // Verbs / action words
+            "karo", "kro", "kardo", "kar", "krdo",
+            "kholo", "khol", "kholdo",
+            "band", "bnd", "bandh",
+            "batao", "bta", "btao", "btado",
+            "dikhao", "dikha", "dikhaao",  
+            "sunao", "suna", "sunaao",
+            "padho", "padh", "pado",
+            "bhejo", "bhej", "bhejdo",
+            "bulao", "bula", "bulaao",
+            "chalao", "chala", "chlao",
+            "bajao", "baja", "bjaao",
+            "lagao", "laga", "lgao",
+            "hatao", "hata", "htao",
+            "uthao", "utha", "uthaao",
+            "rukhao", "rukho", "ruko", "ruk",
+            "bolo", "bol",
+            "jao", "ja", "chalo",
+            "aao", "aaja", "aao",
+            "dekho", "dekh",
+            "suno", "sun",
+            "dedo", "dede", "de",
+            "lelo", "lele", "le",
+            
+            // Question words
+            "kya", "kaun", "kahan", "kab", "kaise", "kitna", "kitne", "kitni", "kyun", "kyu",
+            
+            // Pronouns / common words
+            "mera", "meri", "mere", "tera", "teri", "tere",
+            "uska", "uski", "uske", "iska", "iski", "iske",
+            "apna", "apni", "apne",
+            "hai", "hain", "tha", "thi", "the",
+            "ko", "ka", "ki", "ke", "se", "me", "pe", "par",
+            "nahi", "nhi", "mat", "na",
+            "haan", "han", "ha",
+            "aur", "ya", "lekin", "magar",
+            "abhi", "ab", "phir", "fir",
+            "yeh", "ye", "woh", "wo",
+            "sab", "kuch", "koi",
+            
+            // Common nouns/words in Hindi commands
+            "samne", "saamne", "aas", "paas", "aasp",
+            "peeche", "peche", "piche",
+            "upar", "oopar", "neeche", "niche",
+            "chalu", "shuru", "khatam",
+            "awaaz", "awaz", "aawaz",
+            "roshni", "roshini",
+            "phone", // common in Hinglish
+            "bhaiya", "bhai", "didi", "ji",
+            "dhundho", "dhundo", "khoj", "talaash",
+            "message", // context dependent
+            
+            // Greetings
+            "namaste", "namaskar",
+            
+            // Time
+            "subah", "shaam", "raat", "dopahar",
+            
+            // Adjectives
+            "zyada", "jyada", "kam", "thoda", "bahut", "poora", "pura"
+        )
+        
+        val words = raw.split(Regex("\\s+"))
+        val hindiWordCount = words.count { it in hindiWords }
+        
+        // If 2+ Hindi words found, or 1 Hindi word AND the command is short (≤3 words)
+        return hindiWordCount >= 2 || (hindiWordCount >= 1 && words.size <= 3)
     }
 }

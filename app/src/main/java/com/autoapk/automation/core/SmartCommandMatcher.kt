@@ -132,6 +132,9 @@ object SmartCommandMatcher {
         // Navigation / Maps
         OPEN_MAP, NAVIGATE,
 
+        // Rapido Ride Booking
+        BOOK_RAPIDO, READ_RAPIDO_PIN, CANCEL_RAPIDO,
+
         // Generic QS tile toggle (catches any quick setting by name)
         TOGGLE_QS_TILE,
 
@@ -170,7 +173,8 @@ object SmartCommandMatcher {
         for (p in listOf("swipe right", "right swipe", "daaye swipe"))
             put(p, CommandIntent.SWIPE_RIGHT)
 
-        for (p in listOf("quick settings", "open quick settings"))
+        for (p in listOf("quick settings", "open quick settings", "open quick setting",
+                         "quick setting"))
             put(p, CommandIntent.OPEN_QUICK_SETTINGS)
 
         // --- WIFI ---
@@ -258,6 +262,26 @@ object SmartCommandMatcher {
                          "रास्ता बताओ", "रास्ता दिखाओ", "नेविगेट करो"))
             put(p, CommandIntent.NAVIGATE)
 
+        // --- RAPIDO ---
+        for (p in listOf("open rapido", "rapido kholo", "book rapido", "rapido book karo",
+                         "rapido book", "book a ride", "ride book karo",
+                         "rapido se chalo", "rapido chalao",
+                         "रैपिडो खोलो", "रैपिडो बुक करो", "रैपिडो चलाओ",
+                         "रैपिडो से चलो", "rapido open karo"))
+            put(p, CommandIntent.BOOK_RAPIDO)
+
+        for (p in listOf("rapido pin", "my rapido pin", "pin batao", "mera pin kya hai",
+                         "what is my pin", "what's my pin", "rapido pin kya hai",
+                         "pin dikhao", "pin bata",
+                         "पिन बताओ", "मेरा पिन क्या है", "रैपिडो पिन"))
+            put(p, CommandIntent.READ_RAPIDO_PIN)
+
+        for (p in listOf("cancel ride", "ride cancel karo", "cancel rapido",
+                         "rapido cancel karo", "rapido cancel",
+                         "ride cancel", "booking cancel karo",
+                         "राइड कैंसल करो", "रैपिडो कैंसल करो"))
+            put(p, CommandIntent.CANCEL_RAPIDO)
+
         // --- GENERIC QS TILES (eye comfort, power saving, etc.) ---
         for (p in listOf("eye comfort on", "eye comfort off", "blue light on", "blue light off",
                          "eye care on", "eye care off", "night light on", "night light off"))
@@ -281,7 +305,12 @@ object SmartCommandMatcher {
         for (p in listOf("what's around me", "whats around me", "what is around me",
                          "describe surroundings", "describe surrounding", "what do you see",
                          "look around", "describe scene", "describe the scene",
-                         "tell me what you see", "what can you see"))
+                         "tell me what you see", "what can you see",
+                         "mere samne kya hai", "samne kya hai", "mere samne kya dikh raha hai",
+                         "mere samne kya dikh rha hai", "kya dikh raha hai", "kya dikh rha hai",
+                         "mere aas paas kya hai", "aas paas kya hai",
+                         "samne kya dikh raha hai", "kya hai samne",
+                         "sab kuch batao", "describe scene", "scene describe karo"))
             put(p, CommandIntent.DESCRIBE_SCENE)
 
         for (p in listOf("who is there", "who is in front of me", "who can you see",
@@ -390,10 +419,11 @@ object SmartCommandMatcher {
 
         // === SCROLLING ===
         IntentKeywords(CommandIntent.SCROLL_DOWN, listOf(
-            setOf("scroll", "neeche", "niche", "down", "page", "नीचे", "स्क्रॉल", "page down")
-        )),
+            setOf("scroll", "neeche", "niche", "नीचे", "स्क्रॉल"),
+            setOf("down", "neeche", "niche", "नीचे")
+        ), requireAll = true),
         IntentKeywords(CommandIntent.SCROLL_UP, listOf(
-            setOf("scroll", "upar", "oopar", "up", "page", "ऊपर", "स्क्रॉल", "page up"),
+            setOf("scroll", "oopar", "ऊपर", "स्क्रॉल"),
             setOf("up", "upar", "oopar", "ऊपर")
         ), requireAll = true),
 
@@ -688,15 +718,29 @@ object SmartCommandMatcher {
             setOf("navigate", "navigation", "direction", "directions", "rasta", "route", "नेविगेट", "रास्ता", "दिशा")
         ), weight = 1.3f),
 
+        // === RAPIDO ===
+        IntentKeywords(CommandIntent.BOOK_RAPIDO, listOf(
+            setOf("rapido", "रैपिडो"),
+            setOf("open", "book", "kholo", "chalo", "chalao", "ride", "खोलो", "बुक", "चलाओ", "चलो")
+        ), weight = 1.5f),
+        IntentKeywords(CommandIntent.READ_RAPIDO_PIN, listOf(
+            setOf("pin", "पिन"),
+            setOf("rapido", "batao", "kya", "dikhao", "bata", "रैपिडो", "बताओ", "क्या", "दिखाओ", "my", "mera", "मेरा")
+        ), weight = 1.4f),
+        IntentKeywords(CommandIntent.CANCEL_RAPIDO, listOf(
+            setOf("cancel", "कैंसल", "रद्द"),
+            setOf("ride", "rapido", "booking", "राइड", "रैपिडो", "बुकिंग")
+        ), weight = 1.5f, requireAll = true),
+
         // === VISION ASSISTANCE ===
         IntentKeywords(CommandIntent.DESCRIBE_SCENE, listOf(
-            setOf("describe", "around", "surroundings", "see", "dekho", "dikhao", "batao", "samne", "saamne", "aas", "paas", "scene", "दिखाओ", "बताओ", "सामने", "देखो"),
-            setOf("around", "me", "surroundings", "nearby", "look", "what", "kya", "hai", "hai", "क्या", "है")
-        ), weight = 1.5f),
+            setOf("describe", "surroundings", "scene", "around", "samne", "saamne", "dekho", "dikhao", "batao", "dikh"),
+            setOf("around", "surroundings", "scene", "what", "kya", "hai", "samne", "saamne")
+        ), requireAll = true, weight = 1.5f),
         IntentKeywords(CommandIntent.WHO_IS_THERE, listOf(
             setOf("who", "kaun", "kon", "कौन"),
             setOf("there", "front", "here", "see", "saamne", "samne", "yahan", "hai", "dikh", "सामने", "यहाँ", "है", "दिख")
-        ), weight = 1.5f),
+        ), requireAll = true, weight = 1.5f),
         IntentKeywords(CommandIntent.READ_TEXT_VISION, listOf(
             setOf("read", "padho", "padh", "पढ़ो"),
             setOf("sign", "text", "board", "written", "likha", "says", "say", "लिखा", "बोर्ड")
@@ -1372,6 +1416,24 @@ object SmartCommandMatcher {
                 if (destination.isNotBlank() && destination.length > 1) {
                     Log.i(TAG, "NAVIGATE pattern $index matched: destination='$destination'")
                     return MatchResult(CommandIntent.NAVIGATE, 3.5f, destination)
+                }
+            }
+        }
+
+        // --- RAPIDO BOOK TO [destination] ---
+        val rapidoPatterns = listOf(
+            Regex("^(?:book\\s+rapido|rapido\\s+book(?:\\s+karo)?)\\s+(?:to\\s+)?(.+)"),
+            Regex("^rapido\\s+(?:se\\s+)?(.+?)\\s+(?:chalo|chale|jao|le\\s*chalo)$"),
+            Regex("^rapido\\s+(?:to|for)\\s+(.+)"),
+            Regex("^(?:ride|auto|bike|cab)\\s+(?:book(?:\\s+karo)?)\\s+(?:to\\s+)?(.+?)\\s+(?:on\\s+|via\\s+)?rapido"),
+            Regex("^rapido\\s+(?:auto|bike|cab)\\s+(?:to\\s+|for\\s+)?(.+)")
+        )
+        for ((index, pattern) in rapidoPatterns.withIndex()) {
+            pattern.find(cleaned)?.let { match ->
+                val destination = match.groupValues[1].trim()
+                if (destination.isNotBlank() && destination.length > 1) {
+                    Log.i(TAG, "RAPIDO pattern $index matched: destination='$destination'")
+                    return MatchResult(CommandIntent.BOOK_RAPIDO, 3.5f, destination)
                 }
             }
         }

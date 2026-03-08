@@ -43,25 +43,71 @@ class CallManager(private val context: Context) {
 
     /**
      * Answer incoming call
-     * Requires ANSWER_PHONE_CALLS permission
+     * Uses 3 strategies for maximum compatibility:
+     * 1. TelecomManager.acceptRingingCall() (standard API)
+     * 2. Accessibility: click "Answer"/"Accept" button on call screen
+     * 3. KeyEvent: simulate headset button press
      */
     fun answerCall() {
-        try {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED) {
-                listener?.onError("Answer call permission required")
-                return
-            }
+        var answered = false
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                telecomManager.acceptRingingCall()
-                listener?.onMessage("Call answered")
-            } else {
-                // Deprecated way for older Android, simplified here as minSdk is likely higher
-                listener?.onError("Device not supported for answering calls")
+        // STRATEGY 1: TelecomManager API
+        try {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    @Suppress("DEPRECATION")
+                    telecomManager.acceptRingingCall()
+                    answered = true
+                    Log.i(TAG, "Call answered via TelecomManager")
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error answering call", e)
-            listener?.onError("Could not answer call: ${e.message}")
+            Log.w(TAG, "TelecomManager answer failed: ${e.message}")
+        }
+
+        // STRATEGY 2: Accessibility — click Answer/Accept button on screen
+        if (!answered) {
+            try {
+                val service = AutomationAccessibilityService.instance
+                if (service != null) {
+                    // Try common answer button labels
+                    val answerLabels = listOf("Answer", "Accept", "answer", "accept",
+                        "Swipe up to answer", "Slide to answer", "Answer call")
+                    for (label in answerLabels) {
+                        if (service.findAndClickSmart(label, silent = true)) {
+                            answered = true
+                            Log.i(TAG, "Call answered via accessibility click: '$label'")
+                            break
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Accessibility answer failed: ${e.message}")
+            }
+        }
+
+        // STRATEGY 3: KeyEvent — simulate headset button press (works on many devices)
+        if (!answered) {
+            try {
+                val downEvent = android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_HEADSETHOOK)
+                val upEvent = android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_HEADSETHOOK)
+                
+                @Suppress("DEPRECATION")
+                val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                am.dispatchMediaKeyEvent(downEvent)
+                am.dispatchMediaKeyEvent(upEvent)
+                
+                answered = true
+                Log.i(TAG, "Call answered via headset hook KeyEvent")
+            } catch (e: Exception) {
+                Log.w(TAG, "KeyEvent answer failed: ${e.message}")
+            }
+        }
+
+        if (answered) {
+            listener?.onMessage("Call answered")
+        } else {
+            listener?.onError("Could not answer call")
         }
     }
 

@@ -310,12 +310,28 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Stop All
+        // Stop All — full app shutdown
         binding.btnStopAll.setOnClickListener {
+            // 1. Stop voice recognition
             stopVoiceControl()
+            // 2. Stop bluetooth
             stopBluetoothServer()
+            // 3. Stop foreground service
             stopForegroundService()
-            addToLog("⛔ All services stopped")
+            // 4. Stop TTS
+            AutomationAccessibilityService.instance?.stopSpeaking()
+            // 5. Stop vision auto-describe if running
+            try {
+                commandProcessor.stopVisionWatching()
+            } catch (e: Exception) {
+                Log.w(TAG, "Vision stop failed: ${e.message}")
+            }
+            // 6. Disable accessibility service (this shuts down the core engine)
+            AutomationAccessibilityService.instance?.disableSelf()
+            // 7. Update UI
+            addToLog("⛔ All services stopped — app fully shut down")
+            updateStatusIndicators()
+            Toast.makeText(this, "All services stopped", Toast.LENGTH_SHORT).show()
         }
     }
 

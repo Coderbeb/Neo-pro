@@ -145,6 +145,9 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         // Initialize CommandRouter for app-specific automation
         commandRouter = CommandRouter(this) { text -> speak(text) }
 
+        // Connect Notification Listener to TTS (for "Mom replied on WhatsApp" announcements)
+        NeoNotificationListener.ttsCallback = { text -> speak(text) }
+
         // Initialize WakeTrigger (BT triple-press, proximity sensor)
         wakeTrigger = WakeTrigger(this, this) { triggerWake() }
         wakeTrigger?.register()
@@ -176,6 +179,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
         instanceRef = null
         commandRouter?.destroy()
         commandRouter = null
+        NeoNotificationListener.ttsCallback = null
         wakeTrigger?.unregister()
         wakeTrigger = null
         if (::tts.isInitialized) {
@@ -1217,7 +1221,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
      * @param target The text to search for (e.g., "search", "reels", "shutter", "send")
      * @return true if an element was found and clicked
      */
-    fun findAndClickSmart(target: String): Boolean {
+    fun findAndClickSmart(target: String, silent: Boolean = false): Boolean {
         val rootNode = rootInActiveWindow ?: run {
             Log.w(TAG, "SmartClick: No root window available")
             return false
@@ -1237,7 +1241,7 @@ class AutomationAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
 
         if (allElements.isEmpty()) {
             Log.w(TAG, "SmartClick: No matching elements found for '$target'")
-            speak("Could not find $target on screen")
+            if (!silent) speak("Could not find $target on screen")
             return false
         }
 

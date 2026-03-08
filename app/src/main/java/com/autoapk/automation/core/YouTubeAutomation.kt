@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Intent
 import android.graphics.Path
+import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
@@ -15,10 +16,11 @@ import java.util.Queue
  * YouTube Automation — Search, List, Play, and Control
  *
  * Provides:
- *   - searchAndPlay(query): Open YouTube → search → play first result
- *   - search(query): Open YouTube → search (don't auto-play)
+ *   - searchAndPlay(query): Open YouTube -> search -> play first result
+ *   - search(query): Open YouTube -> search (don't auto-play)
  *   - listVideos(): List video titles on current screen (skipping ads/nav)
  *   - playVideoAtIndex(n): Click the Nth video (content items only)
+ *   - playVideoByName(name): Find and click a video by its title
  *   - controlPlayer(action): Pause/Play/Next/Previous/Fullscreen
  *
  * Supports both YouTube and YouTube RVX.
@@ -41,9 +43,42 @@ class YouTubeAutomation(
             "you", "create", "search", "navigate up", "account",
             "notifications", "cast", "more options"
         )
+
+        // All possible content descriptions for player controls
+        // YouTube uses different labels across versions and languages
+        private val PAUSE_LABELS = listOf(
+            "Pause video", "Pause", "pause video", "pause",
+            "वीडियो रोकें", "रोकें"
+        )
+        private val PLAY_LABELS = listOf(
+            "Play video", "Play", "play video", "play",
+            "Resume", "resume",
+            "वीडियो चलाएं", "चलाएं"
+        )
+        private val NEXT_LABELS = listOf(
+            "Next video", "Next", "next video", "next",
+            "Skip", "skip",
+            "अगला वीडियो", "अगला"
+        )
+        private val PREVIOUS_LABELS = listOf(
+            "Previous video", "Previous", "previous video", "previous",
+            "Rewind", "rewind",
+            "पिछला वीडियो", "पिछला"
+        )
+        private val FULLSCREEN_LABELS = listOf(
+            "Enter full screen", "Full screen", "Fullscreen",
+            "Enter fullscreen", "Maximize",
+            "fullscreen", "full screen", "enter full screen",
+            "फुल स्क्रीन"
+        )
+        private val EXIT_FULLSCREEN_LABELS = listOf(
+            "Exit full screen", "Exit fullscreen", "Minimize",
+            "exit full screen", "minimize"
+        )
     }
 
-    // Cached video list from last listVideos() call
+    // Cached video list from last scan
+    private var cachedVideoNodes = listOf<Pair<String, AccessibilityNodeInfo>>()
     private var cachedVideoTitles = listOf<String>()
 
     /**
@@ -61,9 +96,9 @@ class YouTubeAutomation(
         // Click first video (skip ads)
         val firstVideo = findFirstVideoCard()
         if (firstVideo != null) {
-            firstVideo.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            clickNode(firstVideo)
             tts("Playing first result")
-            Log.i(TAG, "✅ Playing first result for '$query'")
+            Log.i(TAG, "Playing first result for '$query'")
             return true
         }
         return fail("No videos found")
@@ -99,130 +134,316 @@ class YouTubeAutomation(
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             searchField.performAction(android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
         } else {
-            // Fallback: use paste + newline trick or click search suggestion
             val args = Bundle()
             args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, query + "\n")
             searchField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         }
 
         tts("Searching YouTube for $query")
-        Log.i(TAG, "✅ Search submitted for '$query'")
+        Log.i(TAG, "Search submitted for '$query'")
         return true
     }
 
     /**
      * List video titles currently visible on screen.
-     * Skips ads, navigation elements, and non-video items.
-     * Returns numbered list of video titles.
      */
     suspend fun listVideos(): List<String> {
-        val root = service.rootInActiveWindow ?: return emptyList()
-        val videos = mutableListOf<String>()
-        val all = flatten(root)
-
-        for (node in all) {
-            if (!node.isClickable) continue
-            if (isAd(node)) continue
-            if (isNavElement(node)) continue
-            val title = extractVideoTitle(node)
-            if (title != null && title.length > 5) {
-                videos.add(title)
-            }
-        }
-
-        cachedVideoTitles = videos.take(10)
+        val videoCards = scanVideoCards()
+        cachedVideoNodes = videoCards
+        cachedVideoTitles = videoCards.map { it.first }
         Log.i(TAG, "Listed ${cachedVideoTitles.size} videos")
         return cachedVideoTitles
     }
 
     /**
      * Play the Nth video from the current screen.
-     * Uses cached video list from listVideos() if available,
-     * otherwise scans the screen fresh.
+     * Directly clicks the video card node — no secondary search needed.
      */
     suspend fun playVideoAtIndex(index: Int): Boolean {
         Log.i(TAG, "Playing video at index $index")
 
-        // Get video list
-        val videos = if (cachedVideoTitles.isNotEmpty()) cachedVideoTitles else listVideos()
+        // Re-scan video cards to get fresh clickable nodes
+        val videoCards = scanVideoCards()
+        cachedVideoNodes = videoCards
+        cachedVideoTitles = videoCards.map { it.first }
 
-        if (index < 1 || index > videos.size) {
-            return fail("Video number $index not found. I see ${videos.size} videos")
+        if (index < 1 || index > videoCards.size) {
+            return fail("Video number $index not found. I see ${videoCards.size} videos")
         }
 
-        val targetTitle = videos[index - 1]
-        val targetNode = finder.find(targetTitle, wantClickable = true)
-        if (targetNode != null) {
-            targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            tts("Playing video $index: ${targetTitle.take(30)}")
-            Log.i(TAG, "✅ Playing video $index: $targetTitle")
+        val (title, node) = videoCards[index - 1]
+        val clicked = clickNode(node)
+        if (clicked) {
+            tts("Playing video $index: ${title.take(30)}")
+            Log.i(TAG, "Playing video $index: $title")
             return true
         }
 
-        // Fallback: try clicking by position in the video card list
-        return playByPosition(index)
+        // Fallback: tap the center of the node's bounds
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+        if (bounds.width() > 0 && bounds.height() > 0) {
+            injectTap(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+            tts("Playing video $index")
+            return true
+        }
+
+        return fail("Couldn't click video $index")
+    }
+
+    /**
+     * Play a video by its name (fuzzy match against titles on screen).
+     * E.g., "play chunnari chunnari"
+     */
+    suspend fun playVideoByName(name: String): Boolean {
+        Log.i(TAG, "Playing video by name: '$name'")
+
+        val videoCards = scanVideoCards()
+        if (videoCards.isEmpty()) {
+            return false  // silent fail — caller will search instead
+        }
+
+        // Find best fuzzy match
+        val nameLower = name.lowercase()
+        var bestMatch: Pair<String, AccessibilityNodeInfo>? = null
+        var bestScore = 0f
+
+        for ((title, node) in videoCards) {
+            val titleLower = title.lowercase()
+            val score = when {
+                titleLower == nameLower -> 1.0f
+                titleLower.contains(nameLower) -> 0.9f
+                nameLower.split(" ").all { titleLower.contains(it) } -> 0.8f
+                nameLower.split(" ").size > 1 &&
+                    nameLower.split(" ").count { titleLower.contains(it) }.toFloat() /
+                    nameLower.split(" ").size > 0.5f -> 0.6f
+                else -> 0f
+            }
+            if (score > bestScore) {
+                bestScore = score
+                bestMatch = title to node
+            }
+        }
+
+        if (bestMatch != null && bestScore >= 0.6f) {
+            val (title, node) = bestMatch
+            val clicked = clickNode(node)
+            if (clicked) {
+                tts("Playing ${title.take(30)}")
+                Log.i(TAG, "Playing by name: $title (score=$bestScore)")
+                return true
+            }
+            // Fallback: tap center of bounds
+            val bounds = Rect()
+            node.getBoundsInScreen(bounds)
+            if (bounds.width() > 0) {
+                injectTap(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+                tts("Playing ${title.take(30)}")
+                return true
+            }
+        }
+
+        return false  // silent fail — caller will search
     }
 
     /**
      * Control the YouTube video player.
      *
-     * First taps the screen center to reveal controls (they auto-hide),
-     * then finds and clicks the appropriate button.
+     * Multi-strategy approach:
+     *   1. Tap screen to reveal controls (they auto-hide)
+     *   2. Search by content description (multiple known labels)
+     *   3. Search by resource ID (YouTube-specific IDs)
+     *   4. Fallback: double-tap center to toggle play/pause
      */
     suspend fun controlPlayer(action: String) {
         Log.i(TAG, "Player control: $action")
 
-        // Tap center of screen to reveal controls
-        val dm = service.resources.displayMetrics
-        val centerX = dm.widthPixels / 2f
-        val centerY = dm.heightPixels / 2f
+        // Tap center of screen to reveal player controls
+        revealPlayerControls()
 
-        injectTap(centerX, centerY)
-        delay(500)
+        val root = service.rootInActiveWindow
+        if (root == null) {
+            tts("Can't access screen")
+            return
+        }
 
         when (action.lowercase()) {
             "pause", "play" -> {
-                val btn = finder.find("Pause video") ?: finder.find("Play video")
+                val labels = if (action == "pause") PAUSE_LABELS + PLAY_LABELS else PLAY_LABELS + PAUSE_LABELS
+                val btn = findByContentDescription(root, labels)
+                    ?: findByResourceId(root, listOf("player_control_play_pause_replay_button", "player_play_pause_replay_button"))
                 if (btn != null) {
-                    btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    clickNode(btn)
                     tts(if (action == "pause") "Paused" else "Playing")
                 } else {
-                    tts("Can't find play/pause button")
+                    // Last resort: tap center to toggle play/pause
+                    val dm = service.resources.displayMetrics
+                    injectTap(dm.widthPixels / 2f, dm.heightPixels / 3f)
+                    delay(100)
+                    injectTap(dm.widthPixels / 2f, dm.heightPixels / 3f)
+                    tts(if (action == "pause") "Paused" else "Playing")
                 }
             }
             "next" -> {
-                val btn = finder.find("Next video")
+                val btn = findByContentDescription(root, NEXT_LABELS)
+                    ?: findByResourceId(root, listOf("player_next_button", "player_control_next_button"))
                 if (btn != null) {
-                    btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    clickNode(btn)
                     tts("Next video")
                 } else {
                     tts("Can't find next button")
                 }
             }
             "previous" -> {
-                val btn = finder.find("Previous video")
+                val btn = findByContentDescription(root, PREVIOUS_LABELS)
+                    ?: findByResourceId(root, listOf("player_previous_button", "player_control_previous_button"))
                 if (btn != null) {
-                    btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    clickNode(btn)
                     tts("Previous video")
                 } else {
                     tts("Can't find previous button")
                 }
             }
             "fullscreen" -> {
-                val btn = finder.find("Enter full screen") ?: finder.find("Full screen")
+                val btn = findByContentDescription(root, FULLSCREEN_LABELS + EXIT_FULLSCREEN_LABELS)
+                    ?: findByResourceId(root, listOf("fullscreen_button", "player_fullscreen_button"))
                 if (btn != null) {
-                    btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    tts("Full screen")
+                    clickNode(btn)
+                    tts("Fullscreen")
+                } else {
+                    tts("Can't find fullscreen button")
                 }
             }
         }
     }
 
+    // ==================== VIDEO CARD SCANNING ====================
+
+    /**
+     * Scan the accessibility tree and return video card pairs (title, clickableNode).
+     */
+    private fun scanVideoCards(): List<Pair<String, AccessibilityNodeInfo>> {
+        val root = service.rootInActiveWindow ?: return emptyList()
+        val all = flatten(root)
+        val videos = mutableListOf<Pair<String, AccessibilityNodeInfo>>()
+        val seenTitles = mutableSetOf<String>()
+
+        for (node in all) {
+            if (!node.isClickable) continue
+            if (isAd(node)) continue
+            if (isNavElement(node)) continue
+
+            val title = extractVideoTitle(node)
+            if (title != null && title.length > 5 && title !in seenTitles) {
+                seenTitles.add(title)
+                videos.add(title to node)
+            }
+        }
+
+        return videos.take(10)
+    }
+
+    // ==================== PLAYER CONTROL HELPERS ====================
+
+    /**
+     * Reveal player controls by tapping the video area.
+     */
+    private suspend fun revealPlayerControls() {
+        val dm = service.resources.displayMetrics
+        val playerCenterX = dm.widthPixels / 2f
+        val playerCenterY = dm.heightPixels / 4f
+
+        // First tap to reveal controls
+        injectTap(playerCenterX, playerCenterY)
+        delay(600)
+
+        // Check if controls appeared; if not, tap again at center
+        val root = service.rootInActiveWindow
+        if (root != null) {
+            val hasControls = findByContentDescription(root, PAUSE_LABELS + PLAY_LABELS) != null
+            if (!hasControls) {
+                injectTap(dm.widthPixels / 2f, dm.heightPixels / 2f)
+                delay(600)
+            }
+        }
+    }
+
+    /**
+     * Find a node by matching its contentDescription against known labels.
+     */
+    private fun findByContentDescription(
+        root: AccessibilityNodeInfo,
+        labels: List<String>
+    ): AccessibilityNodeInfo? {
+        val all = flatten(root)
+        // Pass 1: exact match
+        for (label in labels) {
+            for (node in all) {
+                val desc = node.contentDescription?.toString() ?: continue
+                if (desc.equals(label, ignoreCase = true) && node.isVisibleToUser) {
+                    Log.i(TAG, "Found control by description: '$desc'")
+                    return if (node.isClickable) node else findClickableParent(node)
+                }
+            }
+        }
+        // Pass 2: contains match
+        for (label in labels) {
+            for (node in all) {
+                val desc = node.contentDescription?.toString() ?: continue
+                if (desc.contains(label, ignoreCase = true) && node.isVisibleToUser) {
+                    Log.i(TAG, "Found control by contains: '$desc' (label='$label')")
+                    return if (node.isClickable) node else findClickableParent(node)
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Find a node by matching its resource ID.
+     */
+    private fun findByResourceId(
+        root: AccessibilityNodeInfo,
+        partialIds: List<String>
+    ): AccessibilityNodeInfo? {
+        val all = flatten(root)
+        for (partialId in partialIds) {
+            for (node in all) {
+                val resId = node.viewIdResourceName ?: continue
+                if (resId.contains(partialId, ignoreCase = true) && node.isVisibleToUser) {
+                    Log.i(TAG, "Found control by resource ID: '$resId'")
+                    return if (node.isClickable) node else findClickableParent(node)
+                }
+            }
+        }
+        return null
+    }
+
     // ==================== INTERNAL HELPERS ====================
 
     /**
-     * Find the first video card that isn't an ad or nav element.
+     * Click a node using multiple strategies.
      */
+    private fun clickNode(node: AccessibilityNodeInfo): Boolean {
+        // Strategy 1: Direct ACTION_CLICK
+        if (node.isClickable) {
+            if (node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+        }
+        // Strategy 2: Walk up to clickable parent
+        val clickableParent = findClickableParent(node)
+        if (clickableParent != null) {
+            if (clickableParent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+        }
+        // Strategy 3: Tap at the center of the node's bounds
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+        if (bounds.width() > 0 && bounds.height() > 0) {
+            injectTap(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+            return true
+        }
+        return false
+    }
+
     private fun findFirstVideoCard(): AccessibilityNodeInfo? {
         val root = service.rootInActiveWindow ?: return null
         val all = flatten(root)
@@ -237,35 +458,6 @@ class YouTubeAutomation(
         return null
     }
 
-    /**
-     * Fallback: click by position among non-ad clickable video cards.
-     */
-    private fun playByPosition(index: Int): Boolean {
-        val root = service.rootInActiveWindow ?: return false
-        val all = flatten(root)
-        var videoCount = 0
-
-        for (node in all) {
-            if (!node.isClickable) continue
-            if (isAd(node)) continue
-            if (isNavElement(node)) continue
-            val title = extractVideoTitle(node)
-            if (title != null && title.length > 5) {
-                videoCount++
-                if (videoCount == index) {
-                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    tts("Playing video $index")
-                    return true
-                }
-            }
-        }
-        return fail("Video $index not found on screen")
-    }
-
-    /**
-     * Extract video title from a clickable container.
-     * Finds the longest text child that isn't a duration or view count.
-     */
     private fun extractVideoTitle(container: AccessibilityNodeInfo): String? {
         var longestText: String? = null
         val queue: Queue<AccessibilityNodeInfo> = LinkedList()
@@ -274,7 +466,6 @@ class YouTubeAutomation(
             val n = queue.poll() ?: continue
             val text = n.text?.toString()
             if (text != null && (longestText == null || text.length > longestText!!.length)) {
-                // Exclude durations like "3:45", view counts, and time stamps
                 if (!text.matches(Regex("^\\d+:\\d+(:\\d+)?$")) &&
                     !text.matches(Regex("^[\\d.]+[KMB]? views?$", RegexOption.IGNORE_CASE)) &&
                     !text.contains(" ago", true) &&
@@ -290,9 +481,6 @@ class YouTubeAutomation(
         return longestText
     }
 
-    /**
-     * Check if a node is an advertisement.
-     */
     private fun isAd(node: AccessibilityNodeInfo): Boolean {
         val allText = getAllChildText(node).lowercase()
         return allText.contains("ad ·") ||
@@ -302,17 +490,11 @@ class YouTubeAutomation(
                 allText.contains("install") && allText.contains("ad")
     }
 
-    /**
-     * Check if a node is a navigation element (not video content).
-     */
     private fun isNavElement(node: AccessibilityNodeInfo): Boolean {
         val desc = node.contentDescription?.toString()?.lowercase() ?: ""
         return desc in NAV_DESCRIPTIONS
     }
 
-    /**
-     * Get all text from a node and its children.
-     */
     private fun getAllChildText(node: AccessibilityNodeInfo): String {
         val sb = StringBuilder()
         val queue: Queue<AccessibilityNodeInfo> = LinkedList()
@@ -328,15 +510,21 @@ class YouTubeAutomation(
         return sb.toString()
     }
 
-    /**
-     * Launch YouTube (tries regular first, then RVX).
-     */
+    private fun findClickableParent(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current = node.parent
+        var depth = 0
+        while (current != null && depth < 5) {
+            if (current.isClickable) return current
+            current = current.parent
+            depth++
+        }
+        return null
+    }
+
     private suspend fun launchYouTube(): Boolean {
-        // Try regular YouTube first
         var intent = service.packageManager.getLaunchIntentForPackage(YOUTUBE_PACKAGE)
         var pkg = YOUTUBE_PACKAGE
 
-        // Try YouTube RVX if regular not installed
         if (intent == null) {
             intent = service.packageManager.getLaunchIntentForPackage(YOUTUBE_RVX_PACKAGE)
             pkg = YOUTUBE_RVX_PACKAGE

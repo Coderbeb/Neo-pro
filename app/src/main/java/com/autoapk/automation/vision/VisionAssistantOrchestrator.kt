@@ -51,6 +51,9 @@ class VisionAssistantOrchestrator(
     private var lastApiCallTime = 0L
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    /** Language mode — set by CommandProcessor before each vision call */
+    var isHindiMode: Boolean = false
+
     // ==================== LAZY INITIALIZATION ====================
 
     /**
@@ -252,7 +255,8 @@ class VisionAssistantOrchestrator(
                     mode = VisionPromptBuilder.CaptureMode.MANUAL,
                     faces = faces,
                     previousContext = previousContext,
-                    userQuery = query
+                    userQuery = query,
+                    respondInHindi = isHindiMode
                 )
 
                 val imageBytes = compressForApi(bitmap)
@@ -290,7 +294,8 @@ class VisionAssistantOrchestrator(
 
                 val prompt = VisionPromptBuilder.buildPrompt(
                     mode = VisionPromptBuilder.CaptureMode.PEOPLE,
-                    faces = faces
+                    faces = faces,
+                    respondInHindi = isHindiMode
                 )
                 val imageBytes = compressForApi(bitmap)
                 val hash = computeHash(bitmap)
@@ -316,7 +321,7 @@ class VisionAssistantOrchestrator(
                     tts("I cannot see anything right now.")
                     return@launch
                 }
-                val prompt = VisionPromptBuilder.buildPrompt(mode = VisionPromptBuilder.CaptureMode.TEXT_READING)
+                val prompt = VisionPromptBuilder.buildPrompt(mode = VisionPromptBuilder.CaptureMode.TEXT_READING, respondInHindi = isHindiMode)
                 val imageBytes = compressForApi(bitmap)
                 val hash = computeHash(bitmap)
                 bitmap.recycle()
@@ -350,7 +355,8 @@ class VisionAssistantOrchestrator(
                 val prompt = VisionPromptBuilder.buildPrompt(
                     mode = VisionPromptBuilder.CaptureMode.WHAT_CHANGED,
                     faces = faces,
-                    previousContext = previousContext
+                    previousContext = previousContext,
+                    respondInHindi = isHindiMode
                 )
                 val imageBytes = compressForApi(bitmap)
                 val hash = computeHash(bitmap)
@@ -375,7 +381,7 @@ class VisionAssistantOrchestrator(
                     tts("I cannot see anything right now.")
                     return@launch
                 }
-                val prompt = VisionPromptBuilder.buildPrompt(mode = VisionPromptBuilder.CaptureMode.SAFETY_CHECK)
+                val prompt = VisionPromptBuilder.buildPrompt(mode = VisionPromptBuilder.CaptureMode.SAFETY_CHECK, respondInHindi = isHindiMode)
                 val imageBytes = compressForApi(bitmap)
                 val hash = computeHash(bitmap)
                 bitmap.recycle()
@@ -401,7 +407,8 @@ class VisionAssistantOrchestrator(
                 }
                 val prompt = VisionPromptBuilder.buildPrompt(
                     mode = VisionPromptBuilder.CaptureMode.FIND_OBJECT,
-                    objectToFind = objectName
+                    objectToFind = objectName,
+                    respondInHindi = isHindiMode
                 )
                 val imageBytes = compressForApi(bitmap)
                 val hash = computeHash(bitmap)
@@ -430,7 +437,8 @@ class VisionAssistantOrchestrator(
             try {
                 val prompt = VisionPromptBuilder.buildPrompt(
                     mode = VisionPromptBuilder.CaptureMode.FOLLOW_UP,
-                    userQuery = question
+                    userQuery = question,
+                    respondInHindi = isHindiMode
                 )
                 geminiService?.followUp(prompt)?.collect { chunk ->
                     tts(chunk)
@@ -446,22 +454,19 @@ class VisionAssistantOrchestrator(
     // ==================== FACE MANAGEMENT ====================
 
     /**
-     * Register a face with a name.
+     * Register a face with guided multi-shot capture.
+     * Takes 3 photos from different angles with voice guidance.
      */
     fun rememberFace(name: String) {
         if (!ensureInitialized() || !ensureCamera()) return
 
         scope.launch {
             try {
-                val bitmap = captureFrameFromActiveCamera()
-                if (bitmap == null) {
-                    tts("I cannot see anything. Please check the camera.")
-                    return@launch
-                }
-
-                val result = faceEngine?.registerFace(name, bitmap)
-                bitmap.recycle()
-
+                val result = faceEngine?.registerFaceGuided(
+                    name = name,
+                    captureFrame = { captureFrameFromActiveCamera() },
+                    tts = tts
+                )
                 if (result != null) {
                     tts(result.message)
                 } else {
@@ -521,6 +526,10 @@ class VisionAssistantOrchestrator(
      */
     fun stopAutoDescribe() {
         autoDescribeManager?.stop()
+        // Cancel any in-flight Gemini API stream
+        geminiService?.cancelStream()
+        // Cancel any pending coroutine jobs (e.g. ongoing describe)
+        scope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.cancel() }
         tts("I stopped watching")
     }
 
@@ -631,7 +640,8 @@ class VisionAssistantOrchestrator(
                     val prompt = VisionPromptBuilder.buildPrompt(
                         mode = mode,
                         faces = faces,
-                        previousContext = previousContext
+                        previousContext = previousContext,
+                        respondInHindi = isHindiMode
                     )
                     val imageBytes = compressForApi(bitmap)
                     bitmap.recycle()

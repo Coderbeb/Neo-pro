@@ -68,9 +68,19 @@ You must estimate approximate distances of objects and people from the camera. U
         faces: List<FaceRecognitionEngine.RecognizedFace> = emptyList(),
         previousContext: String = "",
         userQuery: String? = null,
-        objectToFind: String? = null
+        objectToFind: String? = null,
+        respondInHindi: Boolean = false
     ): String {
         val sb = StringBuilder()
+
+        // Language instruction — placed first for maximum prominence
+        if (respondInHindi) {
+            sb.appendLine("IMPORTANT: Respond ENTIRELY in Hindi (Devanagari script). Do NOT use any English words. Use natural spoken Hindi.")
+            sb.appendLine()
+        } else {
+            sb.appendLine("Respond in English only. Do NOT mix Hindi or any other language.")
+            sb.appendLine()
+        }
 
         // Inject face metadata if any faces were detected
         if (faces.isNotEmpty()) {

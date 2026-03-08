@@ -29,7 +29,7 @@ class AutoDescribeManager(private val context: Context) {
         private const val TAG = "Neo_AutoDesc"
         private const val CHANNEL_ID = "neo_vision_channel"
         private const val NOTIFICATION_ID = 2001
-        private const val DEFAULT_INTERVAL_MS = 10_000L
+        private const val DEFAULT_INTERVAL_MS = 5_000L
         private const val NAVIGATION_INTERVAL_MS = 5_000L
         private const val MIN_INTERVAL_MS = 5_000L
         private const val MAX_INTERVAL_MS = 60_000L

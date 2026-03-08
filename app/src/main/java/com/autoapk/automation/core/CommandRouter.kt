@@ -9,9 +9,10 @@ import kotlinx.coroutines.*
  * Command Router — Central Hub for App-Specific Automation
  *
  * Routes app-specific voice commands to the correct automation class:
- *   - WhatsApp commands → WhatsAppAutomation
+ *   - WhatsApp commands → WhatsAppAutomation (with live chat support)
  *   - YouTube commands → YouTubeAutomation
  *   - Instagram commands → InstagramAutomation
+ *   - Notification commands → NeoNotificationListener ("read it", "reply")
  *   - Everything else → returns false (handled by existing CommandProcessor)
  *
  * Uses regex-based pattern matching for high-accuracy command routing.
@@ -33,6 +34,11 @@ class CommandRouter(
     private val instagram = InstagramAutomation(service, finder, waiter, tts)
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    init {
+        // Connect WhatsApp live chat status to notification listener
+        NeoNotificationListener.isWhatsAppLiveChatActive = { whatsApp.isInLiveChat }
+    }
+
     /**
      * Try to route a command to an app-specific handler.
      * Returns true if handled, false if not matched (fallback to existing).
@@ -41,7 +47,104 @@ class CommandRouter(
         val cmd = command.lowercase().trim()
         Log.i(TAG, "Routing: '$cmd'")
 
+        // ═══════════════════ SYSTEM COMMANDS (intercept before OPEN_APP) ═══════════════════
+
+        // "open recents" / "recent apps" / "recents"
+        if (cmd in listOf("open recents", "open recent", "recent apps", "recents", "recent",
+                          "show recents", "recent wale", "pichle apps", "multitask")) {
+            val svc = service as? AutomationAccessibilityService
+            if (svc != null) {
+                svc.openRecents()
+                tts("Opening recent apps")
+            }
+            return true
+        }
+
+        // "open quick settings" / "quick settings"
+        if (cmd in listOf("open quick settings", "quick settings", "open quick setting",
+                          "quick setting", "control panel", "control center")) {
+            val svc = service as? AutomationAccessibilityService
+            if (svc != null) {
+                svc.openQuickSettings()
+                tts("Opening quick settings")
+            }
+            return true
+        }
+
+        // ═══════════════════ NOTIFICATION COMMANDS (global) ═══════════════════
+
+        // "read it" / "read that" / "read message" / "read notification" / "padh" / "padho"
+        if (cmd.matches(Regex("read\\s+(?:it|that|this|message|notification)|padh(?:o)?"))) {
+            NeoNotificationListener.readLastNotification(tts)
+            return true
+        }
+
+        // "reply [message]" / "reply him/her [message]" — reply to last notified contact
+        val replyMatch = Regex("reply\\s+(?:him|her|them|usse|usko|use\\s+)?(.+)", RegexOption.IGNORE_CASE).find(cmd)
+        if (replyMatch != null) {
+            val message = replyMatch.groupValues[1].trim()
+            val sender = NeoNotificationListener.getLastSender()
+            val pkg = NeoNotificationListener.getLastPackage()
+            if (sender != null && (pkg == "com.whatsapp" || pkg == "com.whatsapp.w4b")) {
+                scope.launch { whatsApp.sendMessage(sender, message) }
+                return true
+            } else if (sender != null) {
+                tts("Can only reply to WhatsApp messages right now")
+                return true
+            } else {
+                tts("No recent notification to reply to")
+                return true
+            }
+        }
+
         // ═══════════════════ WHATSAPP ═══════════════════
+
+        // "close whatsapp chat" / "exit whatsapp chat" — end live chat session
+        // Requires "whatsapp" keyword to avoid conflicting with other apps
+        if (cmd in listOf("close whatsapp chat", "exit whatsapp chat", "close whatsapp",
+                          "stop whatsapp chat", "end whatsapp chat",
+                          "whatsapp chat band karo", "band karo whatsapp chat",
+                          "whatsapp band karo", "whatsapp chat close")) {
+            if (whatsApp.isInLiveChat) {
+                val contact = whatsApp.getActiveChatContact() ?: "contact"
+                whatsApp.stopReplyMonitor()
+                tts("Closed $contact's chat")
+            } else {
+                tts("No active WhatsApp chat")
+            }
+            return true
+        }
+
+        // "send him/her [message]" — contextual send in active chat OR via last WhatsApp contact
+        val contextSendMatch = Regex("send\\s+(?:him|her|them|usse|usko|use)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
+        if (contextSendMatch != null) {
+            val message = contextSendMatch.groupValues[1].trim()
+            if (whatsApp.isInLiveChat) {
+                scope.launch { whatsApp.sendInActiveChat(message) }
+                return true
+            }
+            // Not in live chat — try to send to last WhatsApp contact from notification
+            val lastSender = NeoNotificationListener.getLastSender()
+            val lastPkg = NeoNotificationListener.getLastPackage()
+            if (lastSender != null && (lastPkg == "com.whatsapp" || lastPkg == "com.whatsapp.w4b")) {
+                scope.launch { whatsApp.sendMessage(lastSender, message) }
+                return true
+            }
+
+            // "send [message]" — when in active WhatsApp chat, treat as sending message
+            val simpleSendMatch = Regex("send\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
+            if (simpleSendMatch != null) {
+                val message = simpleSendMatch.groupValues[1].trim()
+                // Avoid consuming "send whatsapp to X" or "send message to X" patterns
+                if (!message.startsWith("whatsapp", true) && !message.startsWith("message to", true)) {
+                    scope.launch { whatsApp.sendInActiveChat(message) }
+                    return true
+                }
+            }
+        }
+
+        // REMOVED: "open chat with X" without "whatsapp" keyword
+        // Use "open whatsapp chat with X" below instead
 
         // "open whatsapp chat with [contact]"
         val openChatMatch = Regex("open\\s+whatsapp\\s+(?:chat|message)\\s+(?:with|to)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
@@ -69,8 +172,8 @@ class CommandRouter(
             return true
         }
 
-        // "read whatsapp messages" or "read messages" or "read his messages"
-        if (cmd.matches(Regex("read\\s+(whatsapp\\s+)?messages?.*")) || cmd == "read messages") {
+        // "read whatsapp messages" — requires "whatsapp" keyword
+        if (cmd.matches(Regex("read\\s+whatsapp\\s+messages?.*"))) {
             scope.launch {
                 val messages = whatsApp.readLastMessages()
                 if (messages.isEmpty()) {
@@ -82,12 +185,30 @@ class CommandRouter(
             return true
         }
 
-        // "call [contact] on whatsapp" or "whatsapp call [contact]"
+        // "video call [contact] on whatsapp" or "whatsapp video call [contact]"
+        // Must come BEFORE voice call patterns since "video call" is more specific
+        val waVideoCallMatch = Regex("(?:whatsapp\\s+)?video\\s+call\\s+(.+?)\\s+(?:on\\s+whatsapp|whatsapp)", RegexOption.IGNORE_CASE).find(cmd)
+            ?: Regex("whatsapp\\s+video\\s+call\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
+            ?: Regex("video\\s+call\\s+(.+?)\\s+(?:on\\s+whatsapp|whatsapp)", RegexOption.IGNORE_CASE).find(cmd)
+        if (waVideoCallMatch != null) {
+            val contact = waVideoCallMatch.groupValues[1].trim()
+            scope.launch { whatsApp.videoCallContact(contact) }
+            return true
+        }
+
+        // "call [contact] on whatsapp" or "whatsapp call [contact]" (voice call)
         val waCallMatch = Regex("(?:whatsapp\\s+)?call\\s+(.+?)\\s+(?:on\\s+whatsapp|whatsapp)", RegexOption.IGNORE_CASE).find(cmd)
             ?: Regex("whatsapp\\s+call\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
         if (waCallMatch != null) {
             val contact = waCallMatch.groupValues[1].trim()
             scope.launch { whatsApp.callContact(contact) }
+            return true
+        }
+
+        // "view whatsapp updates" / "show whatsapp status" / "whatsapp updates dikhao"
+        if (cmd.matches(Regex("(?:view|show|check|see|open|dekho|dikhao)\\s+whatsapp\\s+(?:updates?|status).*")) ||
+            cmd.matches(Regex("whatsapp\\s+(?:updates?|status)\\s*(?:dikhao|dekho|batao|show|view)?.*"))) {
+            scope.launch { whatsApp.viewStatus() }
             return true
         }
 
@@ -108,12 +229,18 @@ class CommandRouter(
         // "play [query]" — but only if it looks like a YouTube search, not "play 3rd"
         if (cmd.startsWith("play ") && !cmd.matches(Regex("play\\s+\\d+(st|nd|rd|th)?.*"))) {
             val query = cmd.removePrefix("play ").trim()
-            if (query.length > 3 && !query.matches(Regex("video|next|previous|song"))) {
+            if (query.length > 1 && !query.matches(Regex("video|next|previous|song"))) {
                 // Check if YouTube is already open
                 val currentPkg = service.rootInActiveWindow?.packageName?.toString()
                 if (currentPkg == "com.google.android.youtube" || currentPkg == "app.rvx.android.youtube") {
-                    // YouTube is open — search within it
-                    scope.launch { youtube.search(query) }
+                    // YouTube is open — try to click a matching video on screen first
+                    scope.launch {
+                        val played = youtube.playVideoByName(query)
+                        if (!played) {
+                            // No match on screen — search instead
+                            youtube.search(query)
+                        }
+                    }
                 } else {
                     // YouTube not open — open and search
                     scope.launch { youtube.searchAndPlay(query) }
@@ -148,13 +275,24 @@ class CommandRouter(
             }
         }
 
-        // "play 3rd" or "play 2nd song" — with YouTube open
+        // "play 3rd" or "play second" or "play third song" — with YouTube open
         val playNthMatch = Regex("play\\s+(\\d+)(?:st|nd|rd|th)?(?:\\s+(?:song|video))?", RegexOption.IGNORE_CASE).find(cmd)
-        if (playNthMatch != null) {
+        // Also match word-based numbers: "play first", "play second", "play third", etc.
+        val wordNumMap = mapOf("first" to 1, "second" to 2, "third" to 3, "fourth" to 4,
+            "fifth" to 5, "sixth" to 6, "seventh" to 7, "eighth" to 8, "ninth" to 9, "tenth" to 10,
+            "pehla" to 1, "dusra" to 2, "teesra" to 3, "chautha" to 4, "panchwa" to 5)
+        val wordNthMatch = Regex("play\\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|pehla|dusra|teesra|chautha|panchwa)(?:\\s+(?:song|video|one))?", RegexOption.IGNORE_CASE).find(cmd)
+        
+        val nthNum = if (playNthMatch != null) {
+            playNthMatch.groupValues[1].toIntOrNull()
+        } else if (wordNthMatch != null) {
+            wordNumMap[wordNthMatch.groupValues[1].lowercase()]
+        } else null
+        
+        if (nthNum != null) {
             val currentPkg = service.rootInActiveWindow?.packageName?.toString()
             if (currentPkg == "com.google.android.youtube" || currentPkg == "app.rvx.android.youtube") {
-                val num = playNthMatch.groupValues[1].toInt()
-                scope.launch { youtube.playVideoAtIndex(num) }
+                scope.launch { youtube.playVideoAtIndex(nthNum) }
                 return true
             }
         }
@@ -163,19 +301,19 @@ class CommandRouter(
         val currentPkg = service.rootInActiveWindow?.packageName?.toString()
         if (currentPkg == "com.google.android.youtube" || currentPkg == "app.rvx.android.youtube") {
             when {
-                cmd in listOf("pause", "pause video", "ruko", "stop video") -> {
+                cmd in listOf("pause", "pause video", "ruko", "stop video", "stop") -> {
                     scope.launch { youtube.controlPlayer("pause") }
                     return true
                 }
-                cmd in listOf("resume", "play video", "chalao") -> {
+                cmd in listOf("resume", "play", "play video", "chalao") -> {
                     scope.launch { youtube.controlPlayer("play") }
                     return true
                 }
-                cmd in listOf("next video", "next song", "agla", "agla song", "agla video") -> {
+                cmd in listOf("next", "next video", "next song", "agla", "agla song", "agla video") -> {
                     scope.launch { youtube.controlPlayer("next") }
                     return true
                 }
-                cmd in listOf("previous video", "previous song", "pichla", "pichla song") -> {
+                cmd in listOf("previous", "previous video", "previous song", "pichla", "pichla song") -> {
                     scope.launch { youtube.controlPlayer("previous") }
                     return true
                 }
@@ -197,11 +335,11 @@ class CommandRouter(
         // "next reel" — only when Instagram is open
         if (currentPkg == "com.instagram.android") {
             when {
-                cmd in listOf("next reel", "next", "agla", "swipe up") -> {
+                cmd in listOf("next reel", "next post", "agla reel", "agla", "swipe up") -> {
                     instagram.nextReel()
                     return true
                 }
-                cmd in listOf("previous reel", "previous", "pichla", "swipe down") -> {
+                cmd in listOf("previous reel", "previous post", "pichla reel", "pichla", "swipe down") -> {
                     instagram.previousReel()
                     return true
                 }
@@ -262,6 +400,8 @@ class CommandRouter(
      */
     fun destroy() {
         instagram.stopAutoScroll()
+        whatsApp.destroy()
+        NeoNotificationListener.isWhatsAppLiveChatActive = null
         scope.cancel()
     }
 }

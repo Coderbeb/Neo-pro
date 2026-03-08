@@ -233,7 +233,8 @@ class NeoStateManager {
                 if (stripped != null) {
                     // Wake word found!
                     wake()
-                    return if (stripped.isBlank()) null else stripped
+                    // If just "Neo" with no command, return empty to indicate wake-only
+                    return if (stripped.isBlank()) "" else stripped
                 }
                 // No wake word — silently ignore
                 Log.d(TAG, "Sleeping — ignored: '${command.take(30)}'")
