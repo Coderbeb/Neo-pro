@@ -45,19 +45,45 @@ class WhatsAppAutomation(
     private var replyMonitorJob: Job? = null
     private val monitorScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
+    // === PENDING RETRY STATE ===
+    // When contact not found, stores context so next voice input retries with corrected name
+    private var pendingRetryMessage: String? = null   // message to send after retry
+    private var pendingRetryAction: String? = null     // "send", "call", "videocall", "open"
+
     /** Check if a live chat session is active */
     val isInLiveChat: Boolean get() = isLiveChat
 
     /** Get the name of the contact in the active chat */
     fun getActiveChatContact(): String? = activeChatContact
 
+    /** Check if there's a pending retry from a failed contact search */
+    fun hasPendingRetry(): Boolean = pendingRetryAction != null
+
+    /** Consume and return the pending retry (action, message). Clears the state. */
+    fun consumePendingRetry(): Pair<String, String?> {
+        val action = pendingRetryAction ?: "send"
+        val message = pendingRetryMessage
+        pendingRetryAction = null
+        pendingRetryMessage = null
+        return Pair(action, message)
+    }
+
+    /** Set pending retry state when contact not found */
+    private fun setPendingRetry(action: String, message: String? = null) {
+        pendingRetryAction = action
+        pendingRetryMessage = message
+        Log.i(TAG, "Pending retry set: action=$action, message=$message")
+    }
+
     // ==================== CORE FEATURES ====================
 
     /**
      * Open a specific contact's chat in WhatsApp.
-     * Steps: Launch WA → Search → Type name → Click result → Read unread → Start monitor
+     * Steps: Launch WA → navigate to chat list → Search → Type name → Click result → Read unread → Start monitor
      *
-     * FIXED: Improved search result clicking with multiple fallback strategies.
+     * SMART: If WhatsApp is already open, skips launching.
+     * SMART: If in another chat, presses Back to return to chat list first.
+     * SMART: If contact not found, announces and returns false.
      */
     suspend fun openChat(contact: String): Boolean {
         Log.i(TAG, "Opening chat with: $contact")
@@ -71,18 +97,36 @@ class WhatsAppAutomation(
         // Stop any existing monitor
         stopReplyMonitor()
 
-        // Step 1: Launch WhatsApp
+        // Step 1: Launch WhatsApp (smart — skips if already open)
         if (!launchWhatsApp()) return false
 
-        // Step 2: Click Search button
-        delay(800)
+        // Step 2: Navigate to chat list if not already there
+        // If we're inside a chat or some other screen, press Back to get to main screen
+        delay(500)
+        val root1 = service.rootInActiveWindow
+        val hasSearch = root1?.let { findNodeByText(it, "Search") } != null
+        if (!hasSearch) {
+            // Probably inside a chat or sub-screen — press Back
+            Log.i(TAG, "Search not visible — pressing Back to return to chat list")
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            delay(800)
+            // Try one more time
+            val root2 = service.rootInActiveWindow
+            if (root2?.let { findNodeByText(it, "Search") } == null) {
+                service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                delay(800)
+            }
+        }
+
+        // Step 3: Click Search button
+        delay(300)
         val searchBtn = finder.find("Search")
-            ?: finder.find("search") // fallback lowercase
+            ?: finder.find("search")
             ?: run { return fail("Can't find search button") }
         searchBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         if (!waiter.waitForEditableField(3000)) return fail("Search field didn't appear")
 
-        // Step 3: Type contact name
+        // Step 4: Type contact name
         delay(300)
         val searchField = waiter.findEditable(service.rootInActiveWindow)
             ?: return fail("Can't find text input")
@@ -94,31 +138,38 @@ class WhatsAppAutomation(
         )
         delay(2000) // Wait for search results (needs network for some contacts)
 
-        // Step 4: Click the matching contact (IMPROVED — multi-strategy)
+        // Step 5: Click the matching contact (multi-strategy)
         val clicked = clickSearchResult(contact)
-        if (!clicked) return fail("Contact $contact not found")
+        if (!clicked) {
+            // Contact not found — inform user
+            tts("Contact $contact not found in WhatsApp. Please try saying the full name.")
+            // Press back to dismiss search
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            delay(300)
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            return false
+        }
 
-        // Step 5: Wait for chat to open (look for message input field)
+        // Step 6: Wait for chat to open (look for message input field)
         if (!waiter.waitForEditableField(5000)) {
-            // Second chance: the editable might be hidden behind keyboard
             delay(1000)
             if (!waiter.waitForEditableField(3000)) {
                 return fail("Chat didn't open")
             }
         }
 
-        // Step 6: Set up live chat session
+        // Step 7: Set up live chat session
         activeChatContact = contact
         isLiveChat = true
         Log.i(TAG, "✅ Chat opened with $contact — live session started")
 
-        // Step 7: Read unread messages
+        // Step 8: Read unread messages
         val unread = readUnreadMessages()
         if (unread.isEmpty()) {
             tts("Opened $contact's chat")
         }
 
-        // Step 8: Start reply monitoring
+        // Step 9: Start reply monitoring
         startReplyMonitor()
 
         return true
@@ -203,6 +254,7 @@ class WhatsAppAutomation(
     /**
      * Send a message to a contact.
      * Opens chat first (if not already open), then types and sends.
+     * If contact not found, sets pending retry so next voice input retries with corrected name.
      */
     suspend fun sendMessage(contact: String, message: String): Boolean {
         Log.i(TAG, "Sending message to $contact: '$message'")
@@ -213,7 +265,11 @@ class WhatsAppAutomation(
         }
 
         // Open the chat first
-        if (!openChat(contact)) return false
+        if (!openChat(contact)) {
+            // Contact not found — set pending retry so next input retries
+            setPendingRetry("send", message)
+            return false
+        }
 
         // Send in the now-active chat
         return sendInActiveChat(message)
@@ -658,9 +714,17 @@ class WhatsAppAutomation(
     // ==================== INTERNAL HELPERS ====================
 
     /**
-     * Launch WhatsApp (tries regular first, then Business).
+     * Launch WhatsApp (smart — skips if already in foreground).
+     * Tries regular WhatsApp first, then Business.
      */
     private suspend fun launchWhatsApp(): Boolean {
+        // Check if WhatsApp is already in foreground
+        val currentPkg = service.rootInActiveWindow?.packageName?.toString()
+        if (currentPkg == WHATSAPP_PACKAGE || currentPkg == WHATSAPP_BUSINESS_PACKAGE) {
+            Log.i(TAG, "WhatsApp already open ($currentPkg) — skipping launch")
+            return true
+        }
+
         // Try regular WhatsApp first
         var intent = service.packageManager.getLaunchIntentForPackage(WHATSAPP_PACKAGE)
         var pkg = WHATSAPP_PACKAGE
@@ -685,6 +749,15 @@ class WhatsAppAutomation(
         Log.w(TAG, "❌ $msg")
         tts(msg)
         return false
+    }
+
+    /** Quick search for a node whose text or contentDescription contains the target. */
+    private fun findNodeByText(root: AccessibilityNodeInfo, target: String): AccessibilityNodeInfo? {
+        for (node in flatten(root)) {
+            if (node.text?.toString()?.contains(target, true) == true) return node
+            if (node.contentDescription?.toString()?.contains(target, true) == true) return node
+        }
+        return null
     }
 
     private fun flatten(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {

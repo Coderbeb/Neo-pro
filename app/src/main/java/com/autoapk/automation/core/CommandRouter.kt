@@ -47,7 +47,21 @@ class CommandRouter(
         val cmd = command.lowercase().trim()
         Log.i(TAG, "Routing: '$cmd'")
 
-        // ═══════════════════ SYSTEM COMMANDS (intercept before OPEN_APP) ═══════════════════
+        // ═══════════════════ PENDING WHATSAPP RETRY ═══════════════════
+        // If WhatsApp had a "contact not found" → user's next input is the corrected name
+        if (whatsApp.hasPendingRetry()) {
+            val (action, pendingMessage) = whatsApp.consumePendingRetry()
+            val correctedContact = cmd  // Entire input = corrected contact name
+            Log.i(TAG, "Pending WhatsApp retry: action=$action, contact='$correctedContact', msg='$pendingMessage'")
+            when (action) {
+                "send" -> scope.launch { whatsApp.sendMessage(correctedContact, pendingMessage ?: "") }
+                "call" -> scope.launch { whatsApp.callContact(correctedContact) }
+                "videocall" -> scope.launch { whatsApp.videoCallContact(correctedContact) }
+                "open" -> scope.launch { whatsApp.openChat(correctedContact) }
+                else -> scope.launch { whatsApp.sendMessage(correctedContact, pendingMessage ?: "") }
+            }
+            return true
+        }
 
         // "open recents" / "recent apps" / "recents"
         if (cmd in listOf("open recents", "open recent", "recent apps", "recents", "recent",
@@ -115,6 +129,29 @@ class CommandRouter(
             return true
         }
 
+        // "chat read karo" / "read chat" / "chat padho" / "messages padho" — read active chat
+        // Must come BEFORE send patterns to avoid "chat read karo" being parsed as ENTER_CHAT
+        if (cmd.matches(Regex("(?:chat\\s+)?(?:read|padho?|padh|suno|sunao)\\s*(?:karo|kar|do)?.*")) ||
+            cmd.matches(Regex("(?:read|padho?|padh|suno|sunao)\\s+(?:chat|messages?|msgs?).*")) ||
+            cmd.matches(Regex("(?:kya|kia)\\s+(?:likha|aaya|bheja|mila).*")) ||
+            cmd.matches(Regex("chat\\s+(?:read|padho?|padh|suno|sunao).*"))) {
+            if (whatsApp.isInLiveChat) {
+                val contact = whatsApp.getActiveChatContact() ?: "contact"
+                scope.launch {
+                    val messages = whatsApp.readLastMessages()
+                    if (messages.isEmpty()) {
+                        tts("No messages found in $contact's chat")
+                    } else {
+                        tts("${contact}'s latest messages:")
+                        messages.forEach { tts(it) }
+                    }
+                }
+            } else {
+                tts("No active chat. Open a chat first.")
+            }
+            return true
+        }
+
         // "send him/her [message]" — contextual send in active chat OR via last WhatsApp contact
         val contextSendMatch = Regex("send\\s+(?:him|her|them|usse|usko|use)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
         if (contextSendMatch != null) {
@@ -154,22 +191,82 @@ class CommandRouter(
             return true
         }
 
-        // "send whatsapp to [contact] saying [message]" or "send message to [contact] saying [message]"
-        val sendMsgMatch = Regex("send\\s+(?:whatsapp|message)\\s+to\\s+(.+?)\\s+(?:saying|that|message)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
-        if (sendMsgMatch != null) {
-            val contact = sendMsgMatch.groupValues[1].trim()
-            val message = sendMsgMatch.groupValues[2].trim()
+        // ── WhatsApp send patterns (comprehensive natural language matching) ──
+        // All patterns extract (contact, message) and route to WhatsAppAutomation.sendMessage()
+
+        // Pattern 1: "send whatsapp to [contact] saying/that [message]" (explicit separator)
+        // Pattern 2: "send message to [contact] saying/that [message]"
+        val sendSayingMatch = Regex("send\\s+(?:whatsapp|message)\\s+to\\s+(.+?)\\s+(?:saying|that|message|bolo|bol)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
+        if (sendSayingMatch != null) {
+            val contact = sendSayingMatch.groupValues[1].trim()
+            val message = sendSayingMatch.groupValues[2].trim()
             scope.launch { whatsApp.sendMessage(contact, message) }
             return true
         }
 
-        // "whatsapp [contact] [message]" — simplified send
-        val quickSendMatch = Regex("whatsapp\\s+(.+?)\\s+(?:saying|bolo|bol|message)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
+        // Pattern 3: "send whatsapp to [contact] [message]" (NO "saying" required — natural speech)
+        // Uses greedy-then-backtrack: first word(s) after "to" = contact, rest = message
+        val sendWaToMatch = Regex("send\\s+(?:whatsapp|message)\\s+(?:to|on)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
+        if (sendWaToMatch != null) {
+            val remainder = sendWaToMatch.groupValues[1].trim()
+            val parsed = splitContactAndMessage(remainder)
+            if (parsed != null) {
+                scope.launch { whatsApp.sendMessage(parsed.first, parsed.second) }
+                return true
+            }
+        }
+
+        // Pattern 4: "[contact] ko whatsapp me/pe [message] bhejo/karo/send"
+        val hindiSendMatch = Regex("(.+?)\\s+(?:ko|ka|ke)\\s+(?:whatsapp|whats app|watsapp)\\s+(?:me|mein|pe|par|per)\\s+(.+?)\\s+(?:bhejo|bhej|karo|kar|send|likh|likho)", RegexOption.IGNORE_CASE).find(cmd)
+        if (hindiSendMatch != null) {
+            val contact = hindiSendMatch.groupValues[1].trim()
+            val message = hindiSendMatch.groupValues[2].trim()
+            scope.launch { whatsApp.sendMessage(contact, message) }
+            return true
+        }
+
+        // Pattern 5: "whatsapp pe/me [contact] ko [message] bhejo/karo"
+        val hindiSendMatch2 = Regex("(?:whatsapp|whats app|watsapp)\\s+(?:pe|me|mein|par|per)\\s+(.+?)\\s+(?:ko|ka|ke)\\s+(.+?)\\s+(?:bhejo|bhej|karo|kar|send|likh|likho)", RegexOption.IGNORE_CASE).find(cmd)
+        if (hindiSendMatch2 != null) {
+            val contact = hindiSendMatch2.groupValues[1].trim()
+            val message = hindiSendMatch2.groupValues[2].trim()
+            scope.launch { whatsApp.sendMessage(contact, message) }
+            return true
+        }
+
+        // Pattern 6: "send [message] to [contact] on/in whatsapp"
+        val sendToOnWaMatch = Regex("send\\s+(.+?)\\s+to\\s+(.+?)\\s+(?:on|in|via)\\s+(?:whatsapp|whats app|watsapp)", RegexOption.IGNORE_CASE).find(cmd)
+        if (sendToOnWaMatch != null) {
+            val message = sendToOnWaMatch.groupValues[1].trim()
+            val contact = sendToOnWaMatch.groupValues[2].trim()
+            scope.launch { whatsApp.sendMessage(contact, message) }
+            return true
+        }
+
+        // Pattern 7: "whatsapp [contact] saying/bolo [message]" (original simplified)
+        val quickSendMatch = Regex("(?:whatsapp|whats app|watsapp)\\s+(.+?)\\s+(?:saying|bolo|bol|bolna|message|msg)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
         if (quickSendMatch != null) {
             val contact = quickSendMatch.groupValues[1].trim()
             val message = quickSendMatch.groupValues[2].trim()
             scope.launch { whatsApp.sendMessage(contact, message) }
             return true
+        }
+
+        // Pattern 8: "whatsapp [contact] [message]" — catch-all (contact = first word(s), rest = message)
+        // Only matches if "whatsapp" is the FIRST word and there's enough content after
+        val waCatchAllMatch = Regex("^(?:whatsapp|whats app|watsapp)\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
+        if (waCatchAllMatch != null) {
+            val remainder = waCatchAllMatch.groupValues[1].trim()
+            // Don't consume commands meant for other handlers (chat, call, video, status, read)
+            val reservedPrefixes = listOf("chat", "call", "video", "status", "update", "read",
+                "open", "close", "exit", "stop", "end", "band")
+            if (reservedPrefixes.none { remainder.startsWith(it, true) }) {
+                val parsed = splitContactAndMessage(remainder)
+                if (parsed != null) {
+                    scope.launch { whatsApp.sendMessage(parsed.first, parsed.second) }
+                    return true
+                }
+            }
         }
 
         // "read whatsapp messages" — requires "whatsapp" keyword
@@ -403,5 +500,27 @@ class CommandRouter(
         whatsApp.destroy()
         NeoNotificationListener.isWhatsAppLiveChatActive = null
         scope.cancel()
+    }
+
+    // ==================== HELPERS ====================
+
+    /**
+     * Split a string like "ritik hello how are you" into (contact, message).
+     *
+     * Heuristic: Contact names are typically 1-3 words. We try the longest
+     * possible contact name first (3 words, then 2, then 1) and assign the
+     * rest as the message.
+     *
+     * Returns null if there's only 1 word (can't split into contact + message).
+     */
+    private fun splitContactAndMessage(text: String): Pair<String, String>? {
+        val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (words.size < 2) return null  // Need at least 1 contact word + 1 message word
+
+        // Try contact = first 1 word, message = rest (most common: "ritik hello")
+        // For multi-word names the user should use "saying" pattern or chat mode
+        val contact = words[0]
+        val message = words.drop(1).joinToString(" ")
+        return Pair(contact, message)
     }
 }

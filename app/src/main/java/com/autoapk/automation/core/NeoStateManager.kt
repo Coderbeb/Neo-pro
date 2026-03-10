@@ -282,14 +282,14 @@ class NeoStateManager {
         if (word in WAKE_WORD_EXACT) return true
 
         // Fuzzy match using Levenshtein distance
-        val distance = levenshteinDistance(word, WAKE_WORD)
+        val distance = StringMatchUtils.levenshteinDistance(word, WAKE_WORD)
         if (distance <= WAKE_WORD_MAX_DISTANCE && word.length >= 2) {
             Log.d(TAG, "Fuzzy wake match: '$word' (distance=$distance)")
             return true
         }
 
         // Phonetic similarity check
-        if (word.length in 2..5 && getPhoneticCode(word) == getPhoneticCode(WAKE_WORD)) {
+        if (word.length in 2..5 && StringMatchUtils.getPhoneticCode(word) == StringMatchUtils.getPhoneticCode(WAKE_WORD)) {
             Log.d(TAG, "Phonetic wake match: '$word'")
             return true
         }
@@ -311,62 +311,7 @@ class NeoStateManager {
         lastLanguage = if (ratio > 0.3f) "hi" else "en"
     }
 
-    // ==================== UTILITY FUNCTIONS ====================
 
-    /**
-     * Levenshtein edit distance between two strings.
-     */
-    private fun levenshteinDistance(s1: String, s2: String): Int {
-        val len1 = s1.length
-        val len2 = s2.length
-        val dp = Array(len1 + 1) { IntArray(len2 + 1) }
-
-        for (i in 0..len1) dp[i][0] = i
-        for (j in 0..len2) dp[0][j] = j
-
-        for (i in 1..len1) {
-            for (j in 1..len2) {
-                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
-                dp[i][j] = minOf(
-                    dp[i - 1][j] + 1,
-                    dp[i][j - 1] + 1,
-                    dp[i - 1][j - 1] + cost
-                )
-            }
-        }
-        return dp[len1][len2]
-    }
-
-    /**
-     * Simple phonetic code (Soundex-like) for fuzzy matching.
-     */
-    private fun getPhoneticCode(word: String): String {
-        if (word.isEmpty()) return ""
-        val sb = StringBuilder()
-        sb.append(word[0])
-
-        val map = mapOf(
-            'b' to '1', 'f' to '1', 'p' to '1', 'v' to '1',
-            'c' to '2', 'g' to '2', 'j' to '2', 'k' to '2', 'q' to '2', 's' to '2', 'x' to '2', 'z' to '2',
-            'd' to '3', 't' to '3',
-            'l' to '4',
-            'm' to '5', 'n' to '5',
-            'r' to '6'
-        )
-
-        var lastCode = map[word[0].lowercaseChar()] ?: '0'
-        for (i in 1 until word.length) {
-            val code = map[word[i].lowercaseChar()] ?: '0'
-            if (code != '0' && code != lastCode) {
-                sb.append(code)
-                if (sb.length >= 4) break
-            }
-            lastCode = code
-        }
-
-        while (sb.length < 4) sb.append('0')
-        return sb.toString()
-    }
 
     /**
      * Clean up resources.

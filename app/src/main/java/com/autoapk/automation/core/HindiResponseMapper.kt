@@ -273,6 +273,38 @@ object HindiResponseMapper {
         "Could not find search field in Rapido" to "रैपिडो में सर्च फील्ड नहीं मिला",
         "Please change pickup location in Rapido app, then tell me when ready." to "कृपया रैपिडो ऐप में पिकअप लोकेशन बदलें, फिर मुझे बताएं।",
 
+        // === WHATSAPP / CHAT AUTOMATION ===
+        "Already in" to "पहले से",
+        "'s chat" to "की चैट में हैं",
+        "Contact" to "कॉन्टैक्ट",
+        "not found in WhatsApp. Please try saying the full name." to "व्हाट्सएप में नहीं मिला। कृपया पूरा नाम बोलें।",
+        "Opened" to "खोला",
+        "No active chat. Open a chat first." to "कोई चैट खुली नहीं है। पहले चैट खोलें।",
+        "No active WhatsApp chat" to "कोई व्हाट्सएप चैट एक्टिव नहीं",
+        "Message sent" to "मैसेज भेजा",
+        "Calling" to "कॉल कर रहे हैं",
+        "on WhatsApp" to "व्हाट्सएप पर",
+        "Video calling" to "वीडियो कॉल कर रहे हैं",
+        "No new updates found" to "कोई नई अपडेट नहीं मिली",
+        "updates found" to "अपडेट मिलीं",
+        "Closed" to "बंद किया",
+        "No messages found in" to "कोई मैसेज नहीं मिला",
+        "'s latest messages:" to "के लेटेस्ट मैसेज:",
+        "Can only reply to WhatsApp messages right now" to "अभी सिर्फ व्हाट्सएप मैसेज का रिप्लाई कर सकते हैं",
+        "No recent notification to reply to" to "रिप्लाई करने के लिए कोई हाल का नोटिफिकेशन नहीं",
+        "Can't find search button" to "सर्च बटन नहीं मिला",
+        "Search field didn't appear" to "सर्च फील्ड नहीं दिखा",
+        "Can't find text input" to "टेक्स्ट इनपुट नहीं मिला",
+        "Can't find message box" to "मैसेज बॉक्स नहीं मिला",
+        "Can't find Send button" to "सेंड बटन नहीं मिला",
+        "Can't find call button" to "कॉल बटन नहीं मिला",
+        "Can't find video call button" to "वीडियो कॉल बटन नहीं मिला",
+        "Can't find Updates tab" to "अपडेट टैब नहीं मिला",
+        "Can't read screen" to "स्क्रीन नहीं पढ़ सकते",
+        "Chat didn't open" to "चैट नहीं खुली",
+        "WhatsApp not installed" to "व्हाट्सएप इंस्टॉल नहीं है",
+        "WhatsApp didn't open" to "व्हाट्सएप नहीं खुला",
+
         // === VOLUME ===
         "Volume adjusted" to "आवाज़ ठीक की"
     )

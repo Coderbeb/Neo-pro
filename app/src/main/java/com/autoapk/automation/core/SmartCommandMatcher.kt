@@ -755,7 +755,7 @@ object SmartCommandMatcher {
         ), weight = 1.6f),
         IntentKeywords(CommandIntent.REMEMBER_FACE, listOf(
             setOf("remember", "save", "yaad", "store", "register", "याद"),
-            setOf("face", "chehra", "person", "चेहरा")
+            setOf("face", "chehra", "person", "him", "her", "this", "isko", "ise", "usko", "usse", "इसको", "इसे", "उसको", "उसे", "चेहरा")
         ), weight = 1.5f, requireAll = true),
         IntentKeywords(CommandIntent.FORGET_FACE, listOf(
             setOf("forget", "delete", "remove", "bhool", "hata", "भूल", "हटा"),
@@ -976,7 +976,9 @@ object SmartCommandMatcher {
         // No command verb found — apply full cleaning as before
         text = normalizeVerbs(text)
         text = stemWords(text)
-        val filtered = words.filter { it !in fillerWords || it in protectedWords }
+        // Re-split from the normalized text (not the original pre-normalization words)
+        val normalizedWords = text.split(" ", "\t").filter { it.isNotBlank() }
+        val filtered = normalizedWords.filter { it !in fillerWords || it in protectedWords }
         return if (filtered.isEmpty()) text else filtered.joinToString(" ")
     }
 
@@ -1065,7 +1067,7 @@ object SmartCommandMatcher {
                     var fuzzyMatched = false
                     for (inputWord in inputWords) {
                         if (inputWord.length >= 3 && keyword.length >= 3) {
-                            val dist = levenshteinDistance(inputWord, keyword)
+                            val dist = StringMatchUtils.levenshteinDistance(inputWord, keyword)
                             if (dist <= 1) {
                                 groupScore += 0.8f
                                 fuzzyMatched = true
@@ -1078,8 +1080,8 @@ object SmartCommandMatcher {
                     if (!fuzzyMatched) {
                         for (inputWord in inputWords) {
                             if (inputWord.length >= 4 && keyword.length >= 4) {
-                                val p1 = getPhoneticCode(inputWord)
-                                val p2 = getPhoneticCode(keyword)
+                                val p1 = StringMatchUtils.getPhoneticCode(inputWord)
+                                val p2 = StringMatchUtils.getPhoneticCode(keyword)
                                 if (p1 == p2) {
                                     groupScore += 0.5f
                                     break
@@ -1117,108 +1119,19 @@ object SmartCommandMatcher {
         return totalScore * intentDef.weight
     }
 
-    /** Fuzzy matching using edit distance and phonetic similarity */
+    /** Fuzzy matching delegated to StringMatchUtils */
     private fun isFuzzyMatch(word1: String, word2: String): Boolean {
-        // Skip very short words to avoid false positives
-        if (word1.length < 3 || word2.length < 3) return false
-        
-        // CRITICAL: Don't match "lock" with "unlock" - they're opposites!
-        val opposites = setOf(
-            setOf("lock", "unlock"),
-            setOf("locked", "unlocked"),
-            setOf("locking", "unlocking"),
-            setOf("on", "off"),
-            setOf("enable", "disable"),
-            setOf("start", "stop")
-        )
-        for (pair in opposites) {
-            if ((word1 in pair && word2 in pair) && word1 != word2) {
-                return false  // Don't fuzzy match opposites
-            }
-        }
-        
-        // Calculate edit distance (Levenshtein)
-        val distance = levenshteinDistance(word1, word2)
-        val maxLen = maxOf(word1.length, word2.length)
-        
-        // Allow 1-2 character differences for words 4+ chars
-        val threshold = when {
-            maxLen <= 4 -> 1
-            maxLen <= 6 -> 2
-            else -> 3
-        }
-        
-        if (distance <= threshold) return true
-        
-        // Phonetic similarity (simple Soundex-like)
-        if (word1.length >= 4 && word2.length >= 4) {
-            val phonetic1 = getPhoneticCode(word1)
-            val phonetic2 = getPhoneticCode(word2)
-            if (phonetic1 == phonetic2) return true
-        }
-        
-        return false
+        return StringMatchUtils.isFuzzyMatch(word1, word2)
     }
 
-    /** Calculate Levenshtein distance (edit distance) between two strings */
+    /** Levenshtein distance delegated to StringMatchUtils */
     private fun levenshteinDistance(s1: String, s2: String): Int {
-        val len1 = s1.length
-        val len2 = s2.length
-        
-        val dp = Array(len1 + 1) { IntArray(len2 + 1) }
-        
-        for (i in 0..len1) dp[i][0] = i
-        for (j in 0..len2) dp[0][j] = j
-        
-        for (i in 1..len1) {
-            for (j in 1..len2) {
-                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
-                dp[i][j] = minOf(
-                    dp[i - 1][j] + 1,      // deletion
-                    dp[i][j - 1] + 1,      // insertion
-                    dp[i - 1][j - 1] + cost // substitution
-                )
-            }
-        }
-        
-        return dp[len1][len2]
+        return StringMatchUtils.levenshteinDistance(s1, s2)
     }
 
-    /** Simple phonetic encoding (Soundex-like) for fuzzy matching */
+    /** Phonetic code delegated to StringMatchUtils */
     private fun getPhoneticCode(word: String): String {
-        if (word.isEmpty()) return ""
-        
-        val normalized = word.lowercase()
-        val result = StringBuilder()
-        
-        // Keep first letter
-        result.append(normalized[0])
-        
-        // Encode consonants
-        val phoneticMap = mapOf(
-            'b' to '1', 'f' to '1', 'p' to '1', 'v' to '1',
-            'c' to '2', 'g' to '2', 'j' to '2', 'k' to '2', 'q' to '2', 's' to '2', 'x' to '2', 'z' to '2',
-            'd' to '3', 't' to '3',
-            'l' to '4',
-            'm' to '5', 'n' to '5',
-            'r' to '6'
-        )
-        
-        var prevCode = phoneticMap[normalized[0]] ?: '0'
-        
-        for (i in 1 until normalized.length) {
-            val char = normalized[i]
-            val code = phoneticMap[char] ?: '0'
-            
-            // Skip vowels and repeated codes
-            if (code != '0' && code != prevCode) {
-                result.append(code)
-                prevCode = code
-            }
-        }
-        
-        // Pad or truncate to 4 characters
-        return result.toString().padEnd(4, '0').take(4)
+        return StringMatchUtils.getPhoneticCode(word)
     }
 
     // ==================== PARAMETERIZED COMMANDS ====================

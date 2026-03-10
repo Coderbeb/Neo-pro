@@ -1163,7 +1163,13 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 val body = param.ifBlank {
                     command.removePrefix("send whatsapp to ").removePrefix("whatsapp message to ").trim()
                 }
-                sendWhatsApp(body)
+                // Route through CommandRouter → WhatsAppAutomation (accessibility-based)
+                val router = AutomationAccessibilityService.instance?.commandRouter
+                if (router != null && router.route("send whatsapp to $body")) {
+                    true
+                } else {
+                    sendWhatsApp(body) // fallback to wa.me URL if router unavailable
+                }
             }
 
             // === CHAT MODE ===
@@ -1302,8 +1308,8 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 true
             }
             SmartCommandMatcher.CommandIntent.REMEMBER_FACE -> {
-                // Extract name: "remember this face as Rajesh" → "Rajesh"
-                val name = command.replace(Regex(".*(?:face as|face|chehra)\\s*"), "").trim()
+                // Extract name: "remember this face as Rajesh" / "remember him as Rajesh" → "Rajesh"
+                val name = command.replace(Regex(".*(?:face\\s+as|him\\s+as|her\\s+as|this\\s+as|face|chehra)\\s*", RegexOption.IGNORE_CASE), "").trim()
                     .ifBlank { param }
                 if (name.isNotBlank()) {
                     getVision().rememberFace(name)
@@ -1994,9 +2000,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
 
     /**
      * Handle toggle result from DirectToggleController with appropriate voice feedback.
-     */
-    /**
-     * Handle toggle result from DirectToggleController with appropriate voice feedback.
      * If QS tile labels are provided and direct API fails, falls back to Quick Settings.
      *
      * @param name Display name for feedback
@@ -2054,24 +2057,12 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     // ==================== PHONE CALLS ====================
 
     private fun makePhoneCall(input: String): Boolean {
-        return try {
-            val number = input.replace(Regex("[^0-9+]"), "")
-            if (number.isNotEmpty()) {
-                val intent = Intent(Intent.ACTION_CALL).apply {
-                    data = android.net.Uri.parse("tel:$number")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-                service?.speak("Calling $number")
-                true
-            } else {
-                service?.speak("Invalid phone number")
-                false
-            }
-        } catch (e: SecurityException) {
-            service?.speak("Phone call permission not granted")
-            false
+        val number = input.replace(Regex("[^0-9+]"), "")
+        if (number.isEmpty()) {
+            service?.speak("Invalid phone number")
+            return false
         }
+        return makeCallTo(number, number)
     }
 
     private fun answerCall(): Boolean {
@@ -2104,16 +2095,16 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 null,
                 "date DESC LIMIT 1"
             )
-            if (cursor != null && cursor.moveToFirst()) {
-                val address = cursor.getString(0)
-                val body = cursor.getString(1)
-                cursor.close()
-                service?.speak("Message from $address: $body")
-                true
-            } else {
-                service?.speak("No unread messages found")
-                false
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val address = it.getString(0)
+                    val body = it.getString(1)
+                    service?.speak("Message from $address: $body")
+                    return true
+                }
             }
+            service?.speak("No messages found")
+            false
         } catch (e: SecurityException) {
             service?.speak("SMS permission not granted")
             false
@@ -2394,6 +2385,28 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         return true
     }
 
+    // ==================== CALL HELPERS ====================
+
+    /**
+     * Unified phone call helper — places a call and updates state.
+     * Handles TTS feedback and SecurityException in one place.
+     */
+    private fun makeCallTo(number: String, displayName: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_CALL).apply {
+                data = android.net.Uri.parse("tel:$number")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            isOnActiveCall = true
+            service?.speak("Calling $displayName")
+            true
+        } catch (e: SecurityException) {
+            service?.speak("Phone call permission not granted")
+            false
+        }
+    }
+
     // ==================== CALL BY CONTACT NAME ====================
 
     private fun callByContactName(name: String): Boolean {
@@ -2417,19 +2430,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 // Clear winner — call directly
                 val match = allMatches[0]
                 Log.i(TAG, "Clear winner: '${match.name}' (score=${match.score}) vs second (score=$secondScore)")
-                service?.speak("Calling ${match.name}")
-                return try {
-                    val intent = Intent(Intent.ACTION_CALL).apply {
-                        data = android.net.Uri.parse("tel:${match.number}")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(intent)
-                    isOnActiveCall = true
-                    true
-                } catch (e: SecurityException) {
-                    service?.speak("Phone call permission not granted")
-                    false
-                }
+                return makeCallTo(match.number, match.name)
             }
 
             // Multiple contacts match closely — ask user to specify
@@ -2446,38 +2447,14 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         if (allMatches.size == 1) {
             val match = allMatches[0]
             Log.i(TAG, "Single match: '${match.name}' (score=${match.score}, type=${match.matchType})")
-            service?.speak("Calling ${match.name}")
-            return try {
-                val intent = Intent(Intent.ACTION_CALL).apply {
-                    data = android.net.Uri.parse("tel:${match.number}")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-                isOnActiveCall = true
-                true
-            } catch (e: SecurityException) {
-                service?.speak("Phone call permission not granted")
-                false
-            }
+            return makeCallTo(match.number, match.name)
         }
 
         // Try scored findContact as fallback (uses fuzzy matching)
         val match = contactRegistry.findContact(name)
         if (match != null) {
             Log.i(TAG, "Fuzzy match: '${match.name}' (score=${match.score}, type=${match.matchType})")
-            service?.speak("Calling ${match.name}")
-            return try {
-                val intent = Intent(Intent.ACTION_CALL).apply {
-                    data = android.net.Uri.parse("tel:${match.number}")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-                isOnActiveCall = true
-                true
-            } catch (e: SecurityException) {
-                service?.speak("Phone call permission not granted")
-                false
-            }
+            return makeCallTo(match.number, match.name)
         }
 
         service?.speak("Contact $name not found. Please try saying the full name.")
@@ -2532,11 +2509,16 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         return true
     }
 
-    // ==================== PHASE 2: MESSAGING ====================
+    // ==================== MESSAGING HELPERS ====================
 
-    private fun sendSms(body: String): Boolean {
-        // Smart parsing: try matching progressively longer prefixes against contacts
-        // Handles multi-word names like "Mahto Krishna hello" → contact="Mahto Krishna", message="hello"
+    /**
+     * Unified contact + message parser for voice commands.
+     * Tries progressively longer prefixes against contacts to handle
+     * multi-word names like "Mahto Krishna hello" → contact="Mahto Krishna", message="hello".
+     *
+     * @return Triple of (contactQuery, bestMatch, message)
+     */
+    private fun parseContactAndMessage(body: String): Triple<String, ContactRegistry.ContactMatch?, String> {
         val words = body.split(" ")
         var contactQuery = ""
         var message = ""
@@ -2562,6 +2544,14 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             message = words.drop(1).joinToString(" ")
             bestMatch = contactRegistry.findContact(contactQuery)
         }
+
+        return Triple(contactQuery, bestMatch, message)
+    }
+
+    // ==================== PHASE 2: MESSAGING ====================
+
+    private fun sendSms(body: String): Boolean {
+        val (contactQuery, bestMatch, message) = parseContactAndMessage(body)
 
         if (contactQuery.isBlank()) {
             service?.speak("Who should I send the message to?")
@@ -2585,33 +2575,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     }
 
     private fun sendWhatsApp(body: String): Boolean {
-        // Smart parsing: try matching progressively longer prefixes against contacts
-        // Handles multi-word names like "Mahto Krishna hello" → contact="Mahto Krishna", message="hello"
-        val words = body.split(" ")
-        var contactQuery = ""
-        var message = ""
-        var bestMatch: ContactRegistry.ContactMatch? = null
-
-        if (contactRegistry.needsScan()) contactRegistry.scanContacts()
-
-        // Try longest prefix first for best contact match
-        for (i in (words.size - 1).coerceAtMost(3) downTo 0) {
-            val candidateName = words.subList(0, i + 1).joinToString(" ")
-            val match = contactRegistry.findContact(candidateName)
-            if (match != null && match.score >= 50) {
-                contactQuery = candidateName
-                bestMatch = match
-                message = words.subList(i + 1, words.size).joinToString(" ")
-                break
-            }
-        }
-
-        // Fallback to first word as contact
-        if (contactQuery.isBlank()) {
-            contactQuery = words.getOrElse(0) { "" }
-            message = words.drop(1).joinToString(" ")
-            bestMatch = contactRegistry.findContact(contactQuery)
-        }
+        val (contactQuery, bestMatch, message) = parseContactAndMessage(body)
 
         if (contactQuery.isBlank()) {
             service?.speak("Who should I send the WhatsApp to?")
@@ -2696,14 +2660,10 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         // Open the chat
         when (app) {
             "whatsapp" -> {
-                if (match != null) {
-                    var number = match.number.replace("+", "").replace(" ", "")
-                    if (!number.startsWith("91") && number.length == 10) number = "91$number"
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = android.net.Uri.parse("https://wa.me/$number")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(intent)
+                // Route through CommandRouter → WhatsAppAutomation (accessibility-based)
+                val router = AutomationAccessibilityService.instance?.commandRouter
+                if (router != null && chatMode.currentContact.isNotBlank()) {
+                    router.route("open whatsapp chat with ${chatMode.currentContact}")
                 } else {
                     appNavigator.openApp("whatsapp")
                 }
@@ -3013,10 +2973,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
 
     // ==================== VOICE UNLOCK CODE HANDLERS ====================
 
-    /**
-     * Handles the "unlock" command.
-     * Auto-enters stored PIN or Pattern on lock screen.
-     */
     /**
      * Handles the "unlock" command.
      * Checks if the command ITSELF contains the secret code (e.g., "Unlock phone code Delta").
