@@ -217,8 +217,12 @@ class PhoneStateDetector(private val context: Context) {
                         if (callEndTransitionPending) {
                             callEndTransitionPending = false
                             updateState()
-                            // Return Neo to ACTIVE mode after call ends
-                            neoState?.exitInCallMode()
+                            // Return Neo to ACTIVE mode ONLY if it was actually in IN_CALL mode
+                            // Without this check, exitInCallMode() fires even when Neo was SLEEPING,
+                            // causing an unwanted "Neo is listening" announcement after every call
+                            if (neoState?.currentMode == NeoStateManager.NeoMode.IN_CALL) {
+                                neoState?.exitInCallMode()
+                            }
                         }
                     }, CALL_END_TRANSITION_DELAY_MS)
                 }
@@ -343,44 +347,95 @@ class PhoneStateDetector(private val context: Context) {
     private fun extractCallerNameFromScreen(root: android.view.accessibility.AccessibilityNodeInfo): String? {
         val candidates = mutableListOf<Pair<String, Int>>() // name, priority
 
-        // Our app's own labels to never pick up as caller name
+        // Labels to NEVER pick up as caller name — expanded to cover all common UI text
         val skipLabels = setOf(
+            // Our app labels
             "neo", "neo pro", "autoapk", "neo is listening", "listening",
             "mai sun raha hu", "going to sleep", "sone ja raha hu",
+            // Call screen buttons and labels
             "decline", "answer", "swipe up to answer", "swipe down to decline",
             "reject", "accept", "message", "remind me", "incoming call",
             "calling...", "video call", "voice call", "hold & accept",
             "end", "add call", "speaker", "mute", "bluetooth",
             "keypad", "contacts", "incoming voice call", "incoming video call",
             "slide to answer", "swipe to answer", "sim 1", "sim 2",
-            "mobile", "work", "home", "other"
+            "mobile", "work", "home", "other",
+            // Status bar / notification text that gets picked up
+            "screenshot", "screenshot saved", "screen recording", "screen record",
+            "screenshot captured", "tap to view", "tap to open",
+            "recording", "record", "captured", "saved",
+            // System UI labels
+            "wi-fi", "wifi", "mobile data", "airplane mode", "battery",
+            "charging", "usb", "hotspot", "location", "do not disturb",
+            "silent", "vibrate", "alarm", "nfc", "flashlight", "auto-rotate",
+            "dark mode", "night mode", "power saving", "data saver",
+            // Time/date fragments
+            "am", "pm",
+            // Notification actions
+            "reply", "mark as read", "delete", "archive", "clear", "clear all",
+            "dismiss", "open", "share", "view", "copy", "send",
+            // Common button text on call screens
+            "hold", "swap", "merge", "record call", "add participant",
+            "switch", "camera", "video"
+        )
+
+        // Words that indicate this text is NOT a person's name
+        val nonNameKeywords = setOf(
+            "screenshot", "recording", "captured", "saved", "notification",
+            "charging", "battery", "connected", "disconnected", "enabled",
+            "disabled", "turned", "download", "uploaded", "update",
+            "installing", "installed", "error", "warning", "permission",
+            "tap", "swipe", "slide", "press", "hold", "click"
         )
 
         fun traverse(node: android.view.accessibility.AccessibilityNodeInfo) {
             val text = node.text?.toString()
             val desc = node.contentDescription?.toString()
             val className = node.className?.toString() ?: ""
+            val viewId = node.viewIdResourceName?.toString()?.lowercase() ?: ""
 
             // Look for TextViews with caller-like content
             if (className.contains("TextView") && !text.isNullOrBlank()) {
                 val trimmed = text.trim()
-                if (trimmed.length >= 2 && trimmed.length <= 50 &&
+                val lower = trimmed.lowercase()
+                if (trimmed.length >= 2 && trimmed.length <= 40 &&
                     !trimmed.matches(Regex("\\d{1,2}:\\d{2}.*")) && // Skip time
-                    trimmed.lowercase() !in skipLabels) {
-                    // Higher priority for text that looks like a name (not a number)
-                    val isName = !trimmed.matches(Regex("[+\\d\\s\\-()]+"))
-                    candidates.add(Pair(trimmed, if (isName) 10 else 5))
+                    !trimmed.matches(Regex("\\d+%?")) && // Skip numbers/percentages
+                    lower !in skipLabels &&
+                    nonNameKeywords.none { kw -> lower.contains(kw) }) {
+
+                    // Determine priority based on how likely this is the caller name
+                    var priority = 1 // default low priority
+
+                    // If the view's resource ID contains "name", "caller", or "title" → high priority
+                    if (viewId.contains("name") || viewId.contains("caller") || 
+                        viewId.contains("title") || viewId.contains("contact")) {
+                        priority = 20
+                    }
+                    // Text that looks like a proper name (letters, spaces, dots — no special chars)
+                    else if (trimmed.matches(Regex("[\\p{L}\\s.'-]+")) && !trimmed.contains("  ")) {
+                        priority = 10
+                    }
+                    // Phone number
+                    else if (trimmed.matches(Regex("[+\\d\\s\\-()]+"))) {
+                        priority = 5
+                    }
+
+                    candidates.add(Pair(trimmed, priority))
                 }
             }
 
             // Also check content descriptions for "X is calling" patterns
-            if (!desc.isNullOrBlank() && desc.length >= 2 && desc.length <= 50) {
+            if (!desc.isNullOrBlank() && desc.length >= 2 && desc.length <= 60) {
                 val descLower = desc.lowercase()
-                if (descLower.contains("calling") && !descLower.contains("incoming")) {
+                if (descLower.contains("calling") && !descLower.contains("incoming") &&
+                    !descLower.contains("screenshot") && !descLower.contains("recording")) {
                     // Extract name from "Name is calling" type descriptions
                     val name = desc.replace(Regex("(?i)\\s*(is\\s+)?calling.*"), "").trim()
-                    if (name.isNotBlank() && name.length >= 2 && name.lowercase() !in skipLabels) {
-                        candidates.add(Pair(name, 15))
+                    if (name.isNotBlank() && name.length >= 2 && 
+                        name.lowercase() !in skipLabels &&
+                        nonNameKeywords.none { kw -> name.lowercase().contains(kw) }) {
+                        candidates.add(Pair(name, 25)) // Highest priority — explicit "X is calling"
                     }
                 }
             }
@@ -398,7 +453,7 @@ class PhoneStateDetector(private val context: Context) {
         // Return highest priority candidate
         candidates.sortByDescending { it.second }
         val best = candidates[0].first
-        Log.d(TAG, "Caller screen candidates: ${candidates.take(5).map { "${it.first}(${it.second})" }}")
+        Log.d(TAG, "Caller screen candidates: ${candidates.take(5).map { "${it.first}(p=${it.second})" }}")
         return best
     }
 

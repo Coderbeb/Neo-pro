@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import com.autoapk.automation.core.PhoneStateDetector
+import com.autoapk.automation.core.GeminiModelManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 
@@ -73,14 +74,17 @@ class VisionAssistantOrchestrator(
                     override fun onCameraConnected() {
                         tts("Camera connected")
                         Log.i(TAG, "USB camera connected")
+                        GeminiModelManager.addVisionLog("📷 USB camera connected")
                     }
                     override fun onCameraDisconnected() {
                         tts("Camera got disconnected")
                         autoDescribeManager?.stop()
                         Log.w(TAG, "USB camera disconnected")
+                        GeminiModelManager.addVisionLog("📷 USB camera disconnected")
                     }
                     override fun onError(message: String) {
                         Log.e(TAG, "Camera error: $message")
+                        GeminiModelManager.addVisionLog("❌ Camera error: $message")
                     }
                 })
             }
@@ -116,9 +120,11 @@ class VisionAssistantOrchestrator(
 
             isInitialized = true
             Log.i(TAG, "✅ Vision module initialized successfully")
+            GeminiModelManager.addVisionLog("✅ Vision module initialized")
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Vision module initialization failed: ${e.message}", e)
+            GeminiModelManager.addVisionLog("❌ Init failed: ${e.message}")
             tts("Could not start vision mode. Please try again.")
             return false
         }
@@ -192,6 +198,25 @@ class VisionAssistantOrchestrator(
     }
 
     /**
+     * Check if a frame is mostly black (avg brightness < 15).
+     */
+    private fun isBlackFrame(bitmap: android.graphics.Bitmap): Boolean {
+        val small = android.graphics.Bitmap.createScaledBitmap(bitmap, 16, 16, true)
+        val pixels = IntArray(256)
+        small.getPixels(pixels, 0, 16, 0, 0, 16, 16)
+        if (small !== bitmap) small.recycle()
+        var totalBrightness = 0L
+        for (p in pixels) {
+            val r = android.graphics.Color.red(p)
+            val g = android.graphics.Color.green(p)
+            val b = android.graphics.Color.blue(p)
+            totalBrightness += (0.299 * r + 0.587 * g + 0.114 * b).toLong()
+        }
+        val avgBrightness = totalBrightness / pixels.size
+        return avgBrightness < 15
+    }
+
+    /**
      * Compute perceptual hash — inline implementation.
      * 64-bit hash based on 8x8 grayscale mean comparison.
      */
@@ -243,11 +268,17 @@ class VisionAssistantOrchestrator(
 
         scope.launch {
             try {
+                GeminiModelManager.addVisionLog("📸 Capturing frame for describeScene...")
                 val bitmap = captureFrameFromActiveCamera()
                 if (bitmap == null) {
+                    GeminiModelManager.addVisionLog("❌ Frame capture returned null")
                     tts("I cannot see anything right now. Please check the camera.")
                     return@launch
                 }
+
+                val w = bitmap.width; val h = bitmap.height
+                val isBlack = isBlackFrame(bitmap)
+                GeminiModelManager.addVisionLog("📸 Frame: ${w}x${h}" + if (isBlack) " ⚠️ BLACK FRAME" else " ✅ OK")
 
                 val faces = faceEngine?.detectAndRecognize(bitmap) ?: emptyList()
                 val previousContext = memory?.getPreviousContext() ?: ""
@@ -263,9 +294,11 @@ class VisionAssistantOrchestrator(
                 val hash = computeHash(bitmap)
                 bitmap.recycle()
 
+                GeminiModelManager.addVisionLog("🤖 Sending to Gemini (${imageBytes.size/1024}KB)")
                 streamAndSpeak(imageBytes, prompt, faces, hash)
             } catch (e: Exception) {
                 Log.e(TAG, "describeScene failed: ${e.message}", e)
+                GeminiModelManager.addVisionLog("❌ describeScene error: ${e.message}")
                 tts("Something went wrong. Please try again.")
             }
         }
@@ -593,9 +626,24 @@ class VisionAssistantOrchestrator(
 
         val fullResponse = StringBuilder()
 
-        geminiService?.describeScene(imageBytes, prompt)?.collect { chunk ->
-            fullResponse.append(chunk)
-            tts(chunk)
+        try {
+            geminiService?.describeScene(imageBytes, prompt)?.collect { chunk ->
+                fullResponse.append(chunk)
+                tts(chunk)
+            }
+            if (fullResponse.isNotBlank()) {
+                GeminiModelManager.addVisionLog("✅ Gemini response (${fullResponse.length} chars)")
+            }
+        } catch (e: Exception) {
+            if (fullResponse.isNotBlank()) {
+                // Gemini already delivered some text (user heard it via TTS).
+                // Don't re-throw — it would trigger the outer catch that says
+                // "Something went wrong", creating a double output.
+                Log.w(TAG, "Gemini stream error after partial response (${fullResponse.length} chars): ${e.message}")
+            } else {
+                // No text was received at all — rethrow so the caller can speak the error
+                throw e
+            }
         }
 
         val responseText = fullResponse.toString().trim()

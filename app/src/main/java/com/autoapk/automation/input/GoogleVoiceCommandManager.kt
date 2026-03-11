@@ -255,7 +255,7 @@ class GoogleVoiceCommandManager(private val context: Context) {
                         break
                     }
                 }
-            }, "Neo_PassiveMic")
+            }, "Neo_PassiveMic").also { it.isDaemon = true }
             passiveThread?.start()
 
         } catch (e: Exception) {

@@ -1246,6 +1246,16 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 service?.findAndClickSmart("shutter") ?: false
             }
 
+            // === CAMERA (PHOTO / SELFIE) ===
+            SmartCommandMatcher.CommandIntent.TAKE_PHOTO -> {
+                handleTakePhoto(useFrontCamera = false)
+                true
+            }
+            SmartCommandMatcher.CommandIntent.TAKE_SELFIE -> {
+                handleTakePhoto(useFrontCamera = true)
+                true
+            }
+
             // === NAVIGATION / MAPS ===
             SmartCommandMatcher.CommandIntent.OPEN_MAP -> {
                 openGoogleMaps()
@@ -2262,6 +2272,110 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             service?.speak("Screenshot requires Android 9 or later")
             false
         }
+    }
+
+    // ==================== CAMERA PHOTO / SELFIE ====================
+
+    /**
+     * Take a photo or selfie using the device's camera app.
+     *
+     * Steps:
+     *   1. Open camera app (if not already open)
+     *   2. Switch to front camera (selfie) or rear camera (photo)
+     *   3. Wait 2 seconds for user to position
+     *   4. Auto-capture
+     *
+     * Uses accessibility service to interact with the native camera app UI.
+     *
+     * @param useFrontCamera true for selfie (front), false for photo (rear)
+     */
+    private fun handleTakePhoto(useFrontCamera: Boolean) {
+        val svc = service ?: run {
+            notConnected()
+            return
+        }
+
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val currentApp = svc.getCurrentAppName()?.lowercase() ?: ""
+        val isCameraOpen = currentApp.contains("camera")
+        val label = if (useFrontCamera) "selfie" else "photo"
+
+        // Announce
+        svc.speak(if (useFrontCamera) "Taking selfie" else "Taking photo")
+        Log.i(TAG, "handleTakePhoto: useFrontCamera=$useFrontCamera, cameraOpen=$isCameraOpen")
+
+        // Step 1: Open camera if needed
+        val cameraReadyDelay = if (isCameraOpen) 500L else {
+            appNavigator.openApp("camera")
+            2000L // Wait for camera app to fully load
+        }
+
+        handler.postDelayed({
+            // Step 2: Switch camera if needed
+            // Try to detect current camera orientation by checking for camera switch UI
+            // Then click the switch/flip button
+            val switchLabels = listOf("switch", "flip", "rotate", "front", "rear",
+                "switch camera", "flip camera", "toggle camera")
+
+            // Always click the switch button — it toggles between front/rear.
+            // We click once for selfie (to front), and the app remembers state.
+            // Strategy: look for a camera switch/flip button
+            val switchClicked = switchLabels.any { label ->
+                svc.findAndClickSmart(label) == true
+            }
+
+            if (switchClicked) {
+                Log.i(TAG, "Camera switch button clicked")
+            } else {
+                // Fallback: try to find by content description patterns
+                val root = svc.rootInActiveWindow
+                if (root != null) {
+                    val switchNodes = root.findAccessibilityNodeInfosByText("switch") +
+                        root.findAccessibilityNodeInfosByText("flip") +
+                        root.findAccessibilityNodeInfosByText("toggle")
+                    for (node in switchNodes) {
+                        if (node.isClickable) {
+                            node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                            Log.i(TAG, "Camera switch via fallback node click")
+                            break
+                        }
+                    }
+                }
+            }
+
+            // Step 3: Wait 2 seconds for positioning, then capture
+            svc.speak("Get ready")
+            handler.postDelayed({
+                // Step 4: Click shutter/capture
+                val captureClicked = svc.findAndClickSmart("shutter") == true ||
+                    svc.findAndClickSmart("capture") == true ||
+                    svc.findAndClickSmart("take") == true
+
+                if (captureClicked) {
+                    Log.i(TAG, "$label captured via shutter button")
+                } else {
+                    // Fallback: try to find a large clickable button near bottom center
+                    val root = svc.rootInActiveWindow
+                    if (root != null) {
+                        // Look for any button with camera-related descriptions
+                        val shutterNodes = root.findAccessibilityNodeInfosByText("shutter") +
+                            root.findAccessibilityNodeInfosByText("capture") +
+                            root.findAccessibilityNodeInfosByText("take photo")
+                        for (node in shutterNodes) {
+                            if (node.isClickable) {
+                                node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                                Log.i(TAG, "$label captured via fallback shutter click")
+                                break
+                            }
+                        }
+                    }
+                }
+
+                handler.postDelayed({
+                    svc.speak("$label taken")
+                }, 500)
+            }, 2000) // 2-second wait
+        }, cameraReadyDelay)
     }
 
     // ==================== ALARM / TIMER ====================

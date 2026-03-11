@@ -2,12 +2,16 @@ package com.autoapk.automation.core
 
 import android.content.Context
 import android.util.Log
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
- * Gemini Model Manager — Curated Model List + API Key Management
+ * Gemini Model Manager — Dynamic Model List from API + API Key Management
  *
- * Provides a curated list of Gemini models for the vision feature.
- * Also manages the API key via SharedPreferences (user can input it in sidebar).
+ * Fetches available Gemini models from the REST API, filters to "flash" models.
+ * Falls back to a curated list if API call fails.
+ * Also manages the API key via SharedPreferences.
  */
 class GeminiModelManager(private val context: Context) {
 
@@ -17,23 +21,47 @@ class GeminiModelManager(private val context: Context) {
         private const val KEY_SELECTED_MODEL = "selected_gemini_model"
         private const val KEY_API_KEY = "gemini_api_key"
         private const val DEFAULT_MODEL = "gemini-2.0-flash"
+        private const val MODELS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
         /**
-         * Curated list of Gemini models.
+         * Fallback curated list (used when API is unreachable).
          */
         val CURATED_MODELS = listOf(
             GeminiModel("gemini-2.0-flash", "Gemini 2.0 Flash"),
-            GeminiModel("gemini-2.0-flash-001", "Gemini 2.0 Flash 001"),
             GeminiModel("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite"),
-            GeminiModel("gemini-2.0-flash-lite-001", "Gemini 2.0 Flash Lite 001"),
             GeminiModel("gemini-2.5-flash", "Gemini 2.5 Flash"),
             GeminiModel("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite"),
-            GeminiModel("gemini-2.5-flash-lite-preview-0925", "Gemini 2.5 Flash Lite Preview Sep 2025"),
-            GeminiModel("gemini-3.0-flash", "Gemini 3 Flash"),
-            GeminiModel("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash Lite Preview"),
-            GeminiModel("gemini-flash-latest", "Gemini Flash Latest"),
-            GeminiModel("gemini-flash-lite-latest", "Gemini Flash-Lite Latest")
+            GeminiModel("gemini-flash-latest", "Gemini Flash Latest")
         )
+
+        // ==================== VISION LOG (singleton) ====================
+        private val visionLogEntries = mutableListOf<String>()
+        private var visionLogListener: ((List<String>) -> Unit)? = null
+        private const val MAX_VISION_LOG = 50
+
+        fun addVisionLog(msg: String) {
+            val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            val entry = "[$timestamp] $msg"
+            synchronized(visionLogEntries) {
+                visionLogEntries.add(entry)
+                if (visionLogEntries.size > MAX_VISION_LOG) {
+                    visionLogEntries.removeAt(0)
+                }
+            }
+            visionLogListener?.invoke(visionLogEntries.toList())
+        }
+
+        fun getVisionLog(): List<String> = synchronized(visionLogEntries) { visionLogEntries.toList() }
+
+        fun clearVisionLog() {
+            synchronized(visionLogEntries) { visionLogEntries.clear() }
+            visionLogListener?.invoke(emptyList())
+        }
+
+        fun setVisionLogListener(listener: ((List<String>) -> Unit)?) {
+            visionLogListener = listener
+        }
     }
 
     /**
@@ -47,9 +75,74 @@ class GeminiModelManager(private val context: Context) {
     // ==================== MODEL SELECTION ====================
 
     /**
-     * Get the curated model list.
+     * Get the fallback curated model list.
      */
     fun getModels(): List<GeminiModel> = CURATED_MODELS
+
+    /**
+     * Fetch available Gemini models from the API.
+     * Filters to "flash" models only. Runs on a background thread.
+     * Calls back on the main thread.
+     *
+     * @param onResult callback with the model list (or curated fallback on error)
+     */
+    fun fetchModelsFromApi(onResult: (List<GeminiModel>) -> Unit) {
+        val apiKey = getApiKey()
+        if (apiKey.isBlank()) {
+            Log.w(TAG, "No API key — using curated list")
+            onResult(CURATED_MODELS)
+            return
+        }
+
+        Thread {
+            try {
+                val url = URL("$MODELS_API_URL?key=$apiKey")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.requestMethod = "GET"
+
+                val code = conn.responseCode
+                if (code != 200) {
+                    Log.w(TAG, "Models API returned $code — using curated list")
+                    postToMain { onResult(CURATED_MODELS) }
+                    return@Thread
+                }
+
+                val body = conn.inputStream.bufferedReader().readText()
+                conn.disconnect()
+
+                val json = JSONObject(body)
+                val modelsArray = json.getJSONArray("models")
+
+                val models = mutableListOf<GeminiModel>()
+                for (i in 0 until modelsArray.length()) {
+                    val obj = modelsArray.getJSONObject(i)
+                    val rawName = obj.getString("name") // e.g., "models/gemini-2.0-flash"
+                    val modelId = rawName.removePrefix("models/")
+                    val displayName = obj.optString("displayName", modelId)
+
+                    // Only include "flash" models
+                    if (modelId.contains("flash", ignoreCase = true)) {
+                        models.add(GeminiModel(modelId, displayName))
+                    }
+                }
+
+                // Sort: latest/higher version first
+                models.sortByDescending { it.modelId }
+
+                Log.i(TAG, "Fetched ${models.size} flash models from API")
+                postToMain { onResult(if (models.isNotEmpty()) models else CURATED_MODELS) }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to fetch models: ${e.message}")
+                postToMain { onResult(CURATED_MODELS) }
+            }
+        }.start()
+    }
+
+    private fun postToMain(action: () -> Unit) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post(action)
+    }
 
     /**
      * Get the currently selected model ID.
@@ -104,6 +197,7 @@ class GeminiModelManager(private val context: Context) {
      * Release resources.
      */
     fun release() {
-        // Nothing to release for curated list approach
+        // Nothing to release
     }
 }
+

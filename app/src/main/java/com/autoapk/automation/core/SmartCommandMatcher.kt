@@ -16,7 +16,7 @@ object SmartCommandMatcher {
 
     private const val TAG = "Neo_Matcher"
 
-    /** Minimum score to accept a match (lowered from 2.5 for better recall) */
+    /** Minimum score to accept a match */
     private const val MIN_SCORE = 1.5f
 
     // ==================== RESULT ====================
@@ -115,7 +115,7 @@ object SmartCommandMatcher {
         ENTER_CHAT, SEND_CHAT_MSG, READ_CHAT, EXIT_CHAT,
 
         // Daily life
-        OPEN_WEATHER, TAKE_PHOTO, READ_CLIPBOARD, COPY,
+        OPEN_WEATHER, TAKE_PHOTO, TAKE_SELFIE, READ_CLIPBOARD, COPY,
 
         // Camera (video)
         RECORD_VIDEO, STOP_RECORDING,
@@ -295,6 +295,22 @@ object SmartCommandMatcher {
                          "screen record"))
             put(p, CommandIntent.TOGGLE_QS_TILE)
 
+        // --- CAMERA (PHOTO / SELFIE) ---
+        for (p in listOf("take photo", "take picture", "take a photo", "take a picture",
+                         "click photo", "click picture", "capture photo",
+                         "photo khicho", "photo lo", "picture khicho", "picture lo",
+                         "tasveer lo", "tasveer khicho",
+                         "फोटो खींचो", "फोटो लो", "तस्वीर खींचो", "तस्वीर लो",
+                         "पिक्चर खींचो", "पिक्चर लो"))
+            put(p, CommandIntent.TAKE_PHOTO)
+
+        for (p in listOf("take selfie", "take a selfie", "click selfie", "selfie lo",
+                         "selfie khicho", "selfie le lo", "meri selfie lo",
+                         "meri photo lo", "apni photo lo",
+                         "सेल्फी लो", "सेल्फी खींचो", "मेरी सेल्फी लो",
+                         "मेरी फोटो लो", "अपनी फोटो लो"))
+            put(p, CommandIntent.TAKE_SELFIE)
+
         for (p in listOf("quick share on", "quick share off", "nearby share on", "nearby share off"))
             put(p, CommandIntent.TOGGLE_QS_TILE)
 
@@ -322,11 +338,21 @@ object SmartCommandMatcher {
             put(p, CommandIntent.READ_TEXT_VISION)
 
         for (p in listOf("start watching", "auto describe on", "keep looking",
-                         "monitor mode on", "start monitoring"))
+                         "monitor mode on", "start monitoring",
+                         "dekhna chalu karo", "dekhna shuru karo",
+                         "dekhte raho", "dekhna chalu", "watching chalu karo",
+                         "nazar rakh", "nazar rakho",
+                         "देखना चालू करो", "देखना शुरू करो", "देखते रहो",
+                         "नज़र रखो", "नजर रखो"))
             put(p, CommandIntent.START_AUTO_DESCRIBE)
 
         for (p in listOf("stop watching", "auto describe off", "stop looking",
-                         "monitor mode off", "stop monitoring"))
+                         "monitor mode off", "stop monitoring",
+                         "dekhna band karo", "dekhna band", "watching band karo",
+                         "dekhna bund karo", "mat dekho",
+                         "nazar hatao", "nazar hata",
+                         "देखना बंद करो", "मत देखो",
+                         "नज़र हटाओ", "नजर हटाओ"))
             put(p, CommandIntent.STOP_AUTO_DESCRIBE)
 
         for (p in listOf("what changed", "anything new", "what is different",
@@ -709,6 +735,16 @@ object SmartCommandMatcher {
             setOf("recording", "record", "video", "रेकॉर्डिंग", "वीडियो")
         ), requireAll = true),
 
+        // === CAMERA (PHOTO / SELFIE) ===
+        IntentKeywords(CommandIntent.TAKE_PHOTO, listOf(
+            setOf("take", "click", "capture", "khicho", "khincho", "lo", "खींचो", "लो"),
+            setOf("photo", "picture", "pic", "tasveer", "फोटो", "तस्वीर", "पिक्चर")
+        ), weight = 1.5f, requireAll = true),
+        IntentKeywords(CommandIntent.TAKE_SELFIE, listOf(
+            setOf("take", "click", "lo", "khicho", "le", "lelo", "लो", "खींचो", "ले"),
+            setOf("selfie", "सेल्फी")
+        ), weight = 1.8f, requireAll = true),
+
         // === NAVIGATION / MAPS ===
         IntentKeywords(CommandIntent.OPEN_MAP, listOf(
             setOf("map", "maps", "naksha", "नक्शा", "मैप"),
@@ -746,13 +782,13 @@ object SmartCommandMatcher {
             setOf("sign", "text", "board", "written", "likha", "says", "say", "लिखा", "बोर्ड")
         ), weight = 1.4f, requireAll = true),
         IntentKeywords(CommandIntent.START_AUTO_DESCRIBE, listOf(
-            setOf("start", "auto", "keep", "monitor", "chalu", "shuru", "dekhte", "aankh", "चालू", "शुरू", "देखते", "आँख"),
-            setOf("watching", "describe", "looking", "monitoring", "raho", "kholo", "mode", "रहो", "खोलो")
-        ), weight = 1.6f),
+            setOf("start", "auto", "keep", "monitor", "chalu", "shuru", "dekhte", "dekhna", "aankh", "nazar", "चालू", "शुरू", "देखते", "देखना", "आँख", "नज़र", "नजर"),
+            setOf("watching", "describe", "looking", "monitoring", "raho", "rakho", "kholo", "mode", "karo", "रहो", "रखो", "खोलो", "करो")
+        ), weight = 1.8f, requireAll = true),
         IntentKeywords(CommandIntent.STOP_AUTO_DESCRIBE, listOf(
-            setOf("stop", "band", "off", "aankh", "बंद", "आँख"),
-            setOf("watching", "describe", "looking", "monitoring", "dekhna", "karo", "band", "देखना", "करो")
-        ), weight = 1.6f),
+            setOf("stop", "band", "off", "bund", "mat", "aankh", "nazar", "बंद", "मत", "आँख", "नज़र", "नजर"),
+            setOf("watching", "describe", "looking", "monitoring", "dekhna", "dekho", "hatao", "karo", "band", "देखना", "देखो", "हटाओ", "करो")
+        ), weight = 1.8f, requireAll = true),
         IntentKeywords(CommandIntent.REMEMBER_FACE, listOf(
             setOf("remember", "save", "yaad", "store", "register", "याद"),
             setOf("face", "chehra", "person", "him", "her", "this", "isko", "ise", "usko", "usse", "इसको", "इसे", "उसको", "उसे", "चेहरा")

@@ -301,19 +301,25 @@ class DirectToggleController(private val context: Context) {
         return try {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
                 Log.w(TAG, "Dark mode toggle requires API 30+")
-                return ToggleResult.FAILED
+                return ToggleResult.NEEDS_PANEL
             }
 
             val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
-            uiModeManager.setApplicationNightMode(
-                if (enabled) UiModeManager.MODE_NIGHT_YES
-                else UiModeManager.MODE_NIGHT_NO
-            )
-            Log.i(TAG, "Dark mode toggled ${if (enabled) "on" else "off"}")
-            ToggleResult.SUCCESS
+            try {
+                // System-wide dark mode toggle (requires system permission)
+                uiModeManager.setNightMode(
+                    if (enabled) UiModeManager.MODE_NIGHT_YES
+                    else UiModeManager.MODE_NIGHT_NO
+                )
+                Log.i(TAG, "Dark mode toggled ${if (enabled) "on" else "off"} (system-wide)")
+                ToggleResult.SUCCESS
+            } catch (e: SecurityException) {
+                Log.w(TAG, "System dark mode failed (no permission): ${e.message}")
+                ToggleResult.NEEDS_PANEL
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Dark mode error: ${e.message}")
-            ToggleResult.FAILED
+            ToggleResult.NEEDS_PANEL
         }
     }
 

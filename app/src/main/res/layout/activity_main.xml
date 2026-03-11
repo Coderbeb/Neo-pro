@@ -480,15 +480,15 @@
                             android:layout_marginStart="12dp" />
                     </LinearLayout>
 
-                    <!-- In-Call Voice Mode Toggle -->
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/switchInCallMode"
+                    <!-- Connect USB Camera (OTG) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnConnectUsbCamera"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="📞  In-Call Voice Mode"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:checked="false"
+                        android:text="📸  Connect USB Camera (OTG)"
+                        android:textAllCaps="false"
+                        app:cornerRadius="12dp"
+                        app:backgroundTint="@color/primary"
                         android:layout_marginTop="4dp" />
 
                     <!-- Vision: Use Built-in Camera Toggle -->
@@ -770,15 +770,19 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="4dp" />
 
-                <!-- Current Model Indicator -->
+                <!-- Current Model (clickable — toggles dropdown) -->
                 <LinearLayout
+                    android:id="@+id/layoutCurrentModel"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp"
-                    android:padding="8dp"
-                    android:background="@color/card_dark">
+                    android:layout_marginBottom="8dp"
+                    android:padding="12dp"
+                    android:background="@color/card_dark"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -796,14 +800,95 @@
                         android:textColor="@color/status_active"
                         android:textSize="13sp"
                         android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvModelDropdownArrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="▼"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
 
-                <!-- Model List Container (populated programmatically) -->
+                <!-- Loading indicator -->
+                <ProgressBar
+                    android:id="@+id/pbModelLoading"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:visibility="gone"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Model List Container (hidden by default, shown on click) -->
                 <LinearLayout
                     android:id="@+id/layoutModelList"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical" />
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/card_dark"
+                android:layout_marginHorizontal="16dp" />
+
+            <!-- ===== VISION DEBUG LOG ===== -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="👁 Vision Log"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnClearVisionLog"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="Clear"
+                        android:textAllCaps="false"
+                        android:textSize="11sp"
+                        android:padding="0dp"
+                        android:minWidth="60dp"
+                        app:cornerRadius="8dp" />
+                </LinearLayout>
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:background="@color/card_dark"
+                    android:padding="8dp">
+
+                    <TextView
+                        android:id="@+id/tvVisionLog"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="No vision activity yet…"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:lineSpacingExtra="2dp" />
+                </ScrollView>
 
             </LinearLayout>
         </LinearLayout>

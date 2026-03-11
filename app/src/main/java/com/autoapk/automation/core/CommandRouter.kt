@@ -167,8 +167,10 @@ class CommandRouter(
                 scope.launch { whatsApp.sendMessage(lastSender, message) }
                 return true
             }
+        }
 
-            // "send [message]" — when in active WhatsApp chat, treat as sending message
+        // "send [message]" — when in active WhatsApp chat, treat as sending message
+        if (whatsApp.isInLiveChat) {
             val simpleSendMatch = Regex("send\\s+(.+)", RegexOption.IGNORE_CASE).find(cmd)
             if (simpleSendMatch != null) {
                 val message = simpleSendMatch.groupValues[1].trim()

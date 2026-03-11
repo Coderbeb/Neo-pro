@@ -31,8 +31,8 @@ class NeoStateManager {
 
         /** Wake word variants that are exact matches (no fuzzy needed) */
         private val WAKE_WORD_EXACT = setOf(
-            "neo", "nio", "neo", "neyo", "niyo", "neo.", "neo!", "neo,",
-            "नियो", "नीओ", "निओ", "neo"
+            "neo", "nio", "neyo", "niyo", "neo.", "neo!", "neo,",
+            "नियो", "नीओ", "निओ"
         )
     }
 

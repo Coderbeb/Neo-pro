@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private var isVoiceActive = false
     private var isBluetoothActive = false
     private val commandLog = mutableListOf<String>()
+    private var usbCameraManagerUI: com.autoapk.automation.vision.UsbCameraManager? = null
 
     // Neo State Manager
     private lateinit var neoState: NeoStateManager
@@ -184,17 +185,57 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // In-Call toggle
-        binding.switchInCallMode.setOnCheckedChangeListener { _, isChecked ->
-            neoState.inCallModeEnabled = isChecked
-            if (isChecked) {
-                addToLog("📞 In-Call voice mode ENABLED")
-            } else {
-                addToLog("📞 In-Call voice mode DISABLED")
-                // If currently in IN_CALL mode, exit it
-                if (neoState.currentMode == NeoStateManager.NeoMode.IN_CALL) {
-                    neoState.exitInCallMode()
+        // Connect USB Camera (OTG)
+        binding.btnConnectUsbCamera.setOnClickListener {
+            addToLog("📸 Scanning for USB camera...")
+            Toast.makeText(this, "Scanning for USB camera...", Toast.LENGTH_SHORT).show()
+
+            try {
+                // Lazy-init the USB camera manager
+                if (usbCameraManagerUI == null) {
+                    usbCameraManagerUI = com.autoapk.automation.vision.UsbCameraManager(this).also {
+                        it.initialize()
+                        it.setListener(object : com.autoapk.automation.vision.UsbCameraManager.CameraListener {
+                            override fun onCameraConnected() {
+                                runOnUiThread {
+                                    addToLog("✅ USB camera connected!")
+                                    binding.btnConnectUsbCamera.text = "📸  USB Camera Connected ✅"
+                                    Toast.makeText(this@MainActivity, "USB camera connected!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            override fun onCameraDisconnected() {
+                                runOnUiThread {
+                                    addToLog("📸 USB camera disconnected")
+                                    binding.btnConnectUsbCamera.text = "📸  Connect USB Camera (OTG)"
+                                    Toast.makeText(this@MainActivity, "USB camera disconnected", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            override fun onError(message: String) {
+                                runOnUiThread {
+                                    addToLog("⚠️ Camera: $message")
+                                }
+                            }
+                        })
+                    }
                 }
+
+                val cam = usbCameraManagerUI!!
+                if (cam.isConnected()) {
+                    addToLog("📸 USB camera is already connected")
+                    Toast.makeText(this, "Camera already connected!", Toast.LENGTH_SHORT).show()
+                } else {
+                    val found = cam.connect()
+                    if (found) {
+                        addToLog("📸 USB camera found — connecting...")
+                    } else {
+                        addToLog("⚠️ No USB camera detected. Please connect an OTG camera.")
+                        Toast.makeText(this, "No USB camera found. Plug in OTG camera and try again.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "USB camera connect error: ${e.message}", e)
+                addToLog("❌ Camera error: ${e.message}")
+                Toast.makeText(this, "Camera connection failed: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -263,6 +304,8 @@ class MainActivity : AppCompatActivity() {
         bluetoothReceiver.stop()
         stopForegroundService()
         neoState.destroy()
+        usbCameraManagerUI?.release()
+        usbCameraManagerUI = null
         modelManager.release()
         Log.d(TAG, "MainActivity destroyed")
         AutomationAccessibilityService.instance?.neoState = null
@@ -796,6 +839,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private var isModelListVisible = false
+    private var modelsFetched = false
+
     private fun setupModelSelector() {
         // Show the currently selected model
         val currentModelId = modelManager.getSelectedModelId()
@@ -804,8 +850,31 @@ class MainActivity : AppCompatActivity() {
         // API Key setup
         setupApiKeyInput()
 
-        // Populate the curated model list
-        populateModelList()
+        // Clickable current model row — toggle dropdown
+        binding.layoutCurrentModel.setOnClickListener {
+            isModelListVisible = !isModelListVisible
+            if (isModelListVisible) {
+                binding.tvModelDropdownArrow.text = "▲"
+                binding.layoutModelList.visibility = View.VISIBLE
+
+                // Fetch from API on first open
+                if (!modelsFetched) {
+                    binding.pbModelLoading.visibility = View.VISIBLE
+                    binding.layoutModelList.removeAllViews()
+                    modelManager.fetchModelsFromApi { models ->
+                        modelsFetched = true
+                        binding.pbModelLoading.visibility = View.GONE
+                        populateModelList(models)
+                    }
+                }
+            } else {
+                binding.tvModelDropdownArrow.text = "▼"
+                binding.layoutModelList.visibility = View.GONE
+            }
+        }
+
+        // Vision log setup
+        setupVisionLog()
     }
 
     private fun setupApiKeyInput() {
@@ -846,6 +915,8 @@ class MainActivity : AppCompatActivity() {
                 binding.tvApiKeyStatus.setTextColor(ContextCompat.getColor(this, R.color.status_active))
                 addToLog("🔑 Gemini API key updated")
                 Toast.makeText(this, "API key saved!", Toast.LENGTH_SHORT).show()
+                // Reset fetched flag so models refresh with new key
+                modelsFetched = false
             } else {
                 binding.tvApiKeyStatus.text = "⚠️ Please enter an API key"
                 binding.tvApiKeyStatus.setTextColor(ContextCompat.getColor(this, R.color.status_inactive))
@@ -853,8 +924,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun populateModelList() {
-        val models = modelManager.getModels()
+    private fun setupVisionLog() {
+        // Wire vision log listener for live updates
+        GeminiModelManager.setVisionLogListener { entries ->
+            runOnUiThread {
+                if (entries.isEmpty()) {
+                    binding.tvVisionLog.text = "No vision activity yet…"
+                } else {
+                    binding.tvVisionLog.text = entries.joinToString("\n")
+                }
+            }
+        }
+
+        // Show existing entries
+        val existing = GeminiModelManager.getVisionLog()
+        if (existing.isNotEmpty()) {
+            binding.tvVisionLog.text = existing.joinToString("\n")
+        }
+
+        // Clear button
+        binding.btnClearVisionLog.setOnClickListener {
+            GeminiModelManager.clearVisionLog()
+            binding.tvVisionLog.text = "No vision activity yet…"
+        }
+    }
+
+    private fun populateModelList(models: List<GeminiModelManager.GeminiModel> = modelManager.getModels()) {
         val container = binding.layoutModelList
         container.removeAllViews()
 
@@ -912,14 +1007,17 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Model: ${model.displayName}", Toast.LENGTH_SHORT).show()
 
                 // Refresh the list to update checkmarks
-                populateModelList()
+                populateModelList(models)
 
-                // Close drawer
-                binding.drawerLayout.closeDrawer(GravityCompat.START)
+                // Collapse dropdown
+                isModelListVisible = false
+                binding.tvModelDropdownArrow.text = "▼"
+                binding.layoutModelList.visibility = View.GONE
             }
 
             container.addView(itemLayout)
         }
     }
 }
+
 
