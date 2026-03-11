@@ -155,10 +155,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 // Update call state tracking
                 isOnActiveCall = (newState == PhoneStateDetector.PhoneState.IN_CALL)
                 
-                // Announce state change if verification requirements changed
-                if (stateDetector.requiresVerification() && oldState == PhoneStateDetector.PhoneState.NORMAL) {
-                    service?.speak("Verification required for commands")
-                }
+                // State change logged above — no spoken announcement needed
             }
         })
         stateDetector.startMonitoring()
@@ -352,33 +349,46 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         Log.i(TAG, "Processing command: '$command' (original: '${rawCommand.trim()}')")
 
         // === TTS ECHO FILTER — while speaking, only accept stop commands ===
+        // EXCEPTION: When in a conversational state (navigation/rapido), allow responses through
         val isTtsSpeaking = service?.isSpeaking == true
         if (isTtsSpeaking) {
             val stopWords = setOf("stop", "ruko", "ruk", "bas", "cancel", "band", "chup",
                 "रुको", "रुक", "बस", "बंद", "चुप")
-            if (command !in stopWords) {
+            val isInConversationalState = navigationState != NavigationState.NONE
+                || rapidoState != RapidoState.NONE
+                || waitingForConfirmation
+                || waitingForContactDisambiguation
+            if (isInConversationalState) {
+                // User is responding to a question (e.g., "yes" to start navigation)
+                // Stop TTS and let the command fall through to the state machine
+                Log.i(TAG, "TTS ECHO FILTER: Allowing '$command' through (conversational state active)")
+                service?.stopSpeaking()
+                // Fall through to normal processing below
+            } else if (command in stopWords) {
+                // Stop word during TTS — stop TTS and reset states
+                Log.i(TAG, "STOP during TTS — stopping speech")
+                service?.stopSpeaking()
+                waitingForUnlockCode = false
+                waitingForContactDisambiguation = false
+                pendingContactMatches = emptyList()
+                waitingForConfirmation = false
+                pendingConfirmationIntent = null
+                pendingConfirmationCommand = ""
+                pendingConfirmationParam = ""
+                navigationState = NavigationState.NONE
+                pendingDestination = ""
+                rapidoState = RapidoState.NONE
+                rapidoPendingDestination = ""
+                rapidoSuggestions = emptyList()
+                rapidoSelectedRideType = ""
+                isOnActiveCall = false
+                service?.speak("Stopped")
+                return true
+            } else {
+                // Not a stop word, not in conversational state — ignore (TTS echo)
                 Log.i(TAG, "TTS ECHO FILTER: Ignoring '$command' while TTS is speaking")
                 return false
             }
-            // Stop word during TTS — stop TTS and reset states
-            Log.i(TAG, "STOP during TTS — stopping speech")
-            service?.stopSpeaking()
-            waitingForUnlockCode = false
-            waitingForContactDisambiguation = false
-            pendingContactMatches = emptyList()
-            waitingForConfirmation = false
-            pendingConfirmationIntent = null
-            pendingConfirmationCommand = ""
-            pendingConfirmationParam = ""
-            navigationState = NavigationState.NONE
-            pendingDestination = ""
-            rapidoState = RapidoState.NONE
-            rapidoPendingDestination = ""
-            rapidoSuggestions = emptyList()
-            rapidoSelectedRideType = ""
-            isOnActiveCall = false
-            service?.speak("Stopped")
-            return true
         }
 
         // === COMMAND COOLDOWN — reject duplicate within 2 seconds ===
@@ -1183,23 +1193,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
 
             // === DAILY LIFE ===
             SmartCommandMatcher.CommandIntent.OPEN_WEATHER -> openWeather()
-            SmartCommandMatcher.CommandIntent.TAKE_PHOTO -> {
-                // Open camera app and click shutter via accessibility
-                val cameraOpened = appNavigator.openApp("camera")
-                if (cameraOpened) {
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        // Try to click shutter button via accessibility
-                        val clicked = service?.findAndClickSmart("shutter") ?: false
-                        if (!clicked) {
-                            // Fallback: try other common camera button names
-                            service?.findAndClickSmart("capture") ?:
-                            service?.findAndClickSmart("take photo") ?:
-                            service?.findAndClickSmart("photo")
-                        }
-                    }, 1500) // Wait for camera app to fully load
-                }
-                true
-            }
+            // TAKE_PHOTO handled below in CAMERA section
             SmartCommandMatcher.CommandIntent.READ_CLIPBOARD -> readClipboard()
             SmartCommandMatcher.CommandIntent.COPY -> {
                 // Copy selected text via the focused node's ACTION_COPY
@@ -2277,13 +2271,75 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     // ==================== CAMERA PHOTO / SELFIE ====================
 
     /**
+     * Detect whether the camera is currently in front-facing (selfie) mode.
+     *
+     * Scans all accessibility nodes for text/content-descriptions that indicate
+     * which camera is active. Common patterns across camera apps:
+     *   - "Switch to front" / "Front camera" → rear is currently active
+     *   - "Switch to rear" / "Rear camera" / "Back camera" → front is currently active
+     *   - "Selfie" in mode label → front is active
+     *
+     * @return true if front camera appears active, false if rear, null if unknown
+     */
+    private fun detectFrontCameraActive(root: android.view.accessibility.AccessibilityNodeInfo?): Boolean? {
+        if (root == null) return null
+
+        // Collect all text and content descriptions from the entire node tree
+        val allTexts = mutableListOf<String>()
+        fun collectTexts(node: android.view.accessibility.AccessibilityNodeInfo) {
+            node.text?.toString()?.lowercase()?.let { allTexts.add(it) }
+            node.contentDescription?.toString()?.lowercase()?.let { allTexts.add(it) }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { collectTexts(it) }
+            }
+        }
+        collectTexts(root)
+
+        val combined = allTexts.joinToString(" ")
+        Log.d(TAG, "Camera UI texts: $combined")
+
+        // "Switch to rear" / "Switch to back" → currently on front
+        // "Switch to front" / "Switch to selfie" → currently on rear
+        for (text in allTexts) {
+            if (text.contains("switch to rear") || text.contains("switch to back")) {
+                Log.i(TAG, "Detected FRONT camera active (found: '$text')")
+                return true
+            }
+            if (text.contains("switch to front") || text.contains("switch to selfie")) {
+                Log.i(TAG, "Detected REAR camera active (found: '$text')")
+                return false
+            }
+        }
+
+        // Check for direct indicators
+        for (text in allTexts) {
+            // "Front camera" or "selfie mode" → front is active
+            if (text.contains("front camera") || text.contains("selfie mode") ||
+                text == "front facing" || text == "selfie") {
+                Log.i(TAG, "Detected FRONT camera active (indicator: '$text')")
+                return true
+            }
+            // "Rear camera" or "back camera" → rear is active
+            if (text.contains("rear camera") || text.contains("back camera") ||
+                text == "rear facing" || text == "back facing") {
+                Log.i(TAG, "Detected REAR camera active (indicator: '$text')")
+                return false
+            }
+        }
+
+        Log.w(TAG, "Could not detect current camera facing — defaulting to rear")
+        return null // Unknown
+    }
+
+    /**
      * Take a photo or selfie using the device's camera app.
      *
      * Steps:
      *   1. Open camera app (if not already open)
-     *   2. Switch to front camera (selfie) or rear camera (photo)
-     *   3. Wait 2 seconds for user to position
-     *   4. Auto-capture
+     *   2. Detect current camera state (front/rear)
+     *   3. Flip camera ONLY if needed (wrong camera is active)
+     *   4. Wait 3 seconds for user to position / focus
+     *   5. Click shutter to capture
      *
      * Uses accessibility service to interact with the native camera app UI.
      *
@@ -2300,53 +2356,71 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
         val isCameraOpen = currentApp.contains("camera")
         val label = if (useFrontCamera) "selfie" else "photo"
 
-        // Announce
-        svc.speak(if (useFrontCamera) "Taking selfie" else "Taking photo")
         Log.i(TAG, "handleTakePhoto: useFrontCamera=$useFrontCamera, cameraOpen=$isCameraOpen")
 
         // Step 1: Open camera if needed
         val cameraReadyDelay = if (isCameraOpen) 500L else {
             appNavigator.openApp("camera")
-            2000L // Wait for camera app to fully load
+            2500L // Wait for camera app to fully load
         }
 
         handler.postDelayed({
-            // Step 2: Switch camera if needed
-            // Try to detect current camera orientation by checking for camera switch UI
-            // Then click the switch/flip button
-            val switchLabels = listOf("switch", "flip", "rotate", "front", "rear",
-                "switch camera", "flip camera", "toggle camera")
+            // Step 2: Detect current camera state
+            val root = svc.rootInActiveWindow
+            val isFrontActive = detectFrontCameraActive(root)
 
-            // Always click the switch button — it toggles between front/rear.
-            // We click once for selfie (to front), and the app remembers state.
-            // Strategy: look for a camera switch/flip button
-            val switchClicked = switchLabels.any { label ->
-                svc.findAndClickSmart(label) == true
+            // Step 3: Decide whether to flip
+            val needsFlip = when {
+                // Want front camera (selfie) but rear is active → flip
+                useFrontCamera && isFrontActive == false -> true
+                // Want rear camera (photo) but front is active → flip
+                !useFrontCamera && isFrontActive == true -> true
+                // Already on correct camera → don't flip
+                useFrontCamera && isFrontActive == true -> false
+                !useFrontCamera && isFrontActive == false -> false
+                // Unknown state: rear detection works but front detection often fails,
+                // so null likely means front camera is active.
+                // For photo (want rear): flip to be safe
+                // For selfie (want front): don't flip (assume already on front)
+                else -> !useFrontCamera
             }
 
-            if (switchClicked) {
-                Log.i(TAG, "Camera switch button clicked")
-            } else {
-                // Fallback: try to find by content description patterns
-                val root = svc.rootInActiveWindow
-                if (root != null) {
-                    val switchNodes = root.findAccessibilityNodeInfosByText("switch") +
-                        root.findAccessibilityNodeInfosByText("flip") +
-                        root.findAccessibilityNodeInfosByText("toggle")
-                    for (node in switchNodes) {
-                        if (node.isClickable) {
-                            node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
-                            Log.i(TAG, "Camera switch via fallback node click")
-                            break
+            Log.i(TAG, "Camera state: frontActive=$isFrontActive, wantFront=$useFrontCamera, needsFlip=$needsFlip")
+
+            if (needsFlip) {
+                Log.i(TAG, "Flipping camera for $label")
+                val switchLabels = listOf("switch", "flip", "rotate",
+                    "switch camera", "flip camera", "toggle camera")
+
+                val switchClicked = switchLabels.any { switchLabel ->
+                    svc.findAndClickSmart(switchLabel) == true
+                }
+
+                if (switchClicked) {
+                    Log.i(TAG, "Camera switch button clicked")
+                } else {
+                    // Fallback: try to find by content description patterns
+                    val switchRoot = svc.rootInActiveWindow
+                    if (switchRoot != null) {
+                        val switchNodes = switchRoot.findAccessibilityNodeInfosByText("switch") +
+                            switchRoot.findAccessibilityNodeInfosByText("flip") +
+                            switchRoot.findAccessibilityNodeInfosByText("toggle")
+                        for (node in switchNodes) {
+                            if (node.isClickable) {
+                                node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+                                Log.i(TAG, "Camera switch via fallback node click")
+                                break
+                            }
                         }
                     }
                 }
+            } else {
+                Log.i(TAG, "Camera already on correct side, no flip needed")
             }
 
-            // Step 3: Wait 2 seconds for positioning, then capture
-            svc.speak("Get ready")
+            // Step 4: Wait 3 seconds for positioning/focus, then capture
             handler.postDelayed({
-                // Step 4: Click shutter/capture
+                // Step 5: Click shutter/capture
                 val captureClicked = svc.findAndClickSmart("shutter") == true ||
                     svc.findAndClickSmart("capture") == true ||
                     svc.findAndClickSmart("take") == true
@@ -2354,13 +2428,12 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 if (captureClicked) {
                     Log.i(TAG, "$label captured via shutter button")
                 } else {
-                    // Fallback: try to find a large clickable button near bottom center
-                    val root = svc.rootInActiveWindow
-                    if (root != null) {
-                        // Look for any button with camera-related descriptions
-                        val shutterNodes = root.findAccessibilityNodeInfosByText("shutter") +
-                            root.findAccessibilityNodeInfosByText("capture") +
-                            root.findAccessibilityNodeInfosByText("take photo")
+                    // Fallback: search accessibility nodes for shutter-related buttons
+                    val captureRoot = svc.rootInActiveWindow
+                    if (captureRoot != null) {
+                        val shutterNodes = captureRoot.findAccessibilityNodeInfosByText("shutter") +
+                            captureRoot.findAccessibilityNodeInfosByText("capture") +
+                            captureRoot.findAccessibilityNodeInfosByText("take photo")
                         for (node in shutterNodes) {
                             if (node.isClickable) {
                                 node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
@@ -2372,9 +2445,9 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 }
 
                 handler.postDelayed({
-                    svc.speak("$label taken")
+                    svc.speak(if (useFrontCamera) "Selfie taken successfully" else "Photo taken successfully")
                 }, 500)
-            }, 2000) // 2-second wait
+            }, 3000) // 3-second wait for focus and positioning
         }, cameraReadyDelay)
     }
 

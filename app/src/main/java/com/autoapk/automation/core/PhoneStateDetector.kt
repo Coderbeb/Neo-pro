@@ -1,6 +1,9 @@
 package com.autoapk.automation.core
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.os.Build
@@ -73,6 +76,10 @@ class PhoneStateDetector(private val context: Context) {
     private var isCallActive = false
     private var callEndTransitionPending = false
 
+    // BroadcastReceiver to capture incoming number in real-time (needed for Android 12+)
+    private var phoneStateBroadcastReceiver: BroadcastReceiver? = null
+    private var lastIncomingNumber: String? = null
+
     // Neo State Manager — for in-call mode transitions
     var neoState: NeoStateManager? = null
 
@@ -117,6 +124,9 @@ class PhoneStateDetector(private val context: Context) {
         // Register call state listener
         registerCallStateListener()
         
+        // Register BroadcastReceiver for real-time incoming number capture
+        registerPhoneStateBroadcastReceiver()
+        
         // Register camera availability callback
         registerCameraCallback()
         
@@ -134,6 +144,9 @@ class PhoneStateDetector(private val context: Context) {
         
         // Unregister call state listener
         unregisterCallStateListener()
+        
+        // Unregister BroadcastReceiver
+        unregisterPhoneStateBroadcastReceiver()
         
         // Unregister camera callback
         unregisterCameraCallback()
@@ -187,7 +200,8 @@ class PhoneStateDetector(private val context: Context) {
     private fun registerTelephonyCallback() {
         val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
             override fun onCallStateChanged(state: Int) {
-                handleCallStateChange(state)
+                // Android 12+ doesn't provide number — use lastIncomingNumber from BroadcastReceiver
+                handleCallStateChange(state, lastIncomingNumber)
             }
         }
         
@@ -197,6 +211,48 @@ class PhoneStateDetector(private val context: Context) {
             callback
         )
         Log.d(TAG, "TelephonyCallback registered (Android 12+)")
+    }
+
+    /**
+     * Register BroadcastReceiver for android.intent.action.PHONE_STATE.
+     * This fires in REAL-TIME when a call comes in and provides the incoming
+     * number via EXTRA_INCOMING_NUMBER (requires READ_CALL_LOG on Android 10+).
+     * We store the number so it's available when TelephonyCallback fires.
+     */
+    @Suppress("DEPRECATION")
+    private fun registerPhoneStateBroadcastReceiver() {
+        phoneStateBroadcastReceiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context?, intent: Intent?) {
+                if (intent?.action == TelephonyManager.ACTION_PHONE_STATE_CHANGED) {
+                    val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+                    val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+                    if (state == TelephonyManager.EXTRA_STATE_RINGING && !number.isNullOrBlank()) {
+                        lastIncomingNumber = number
+                        Log.i(TAG, "BroadcastReceiver captured incoming number: $number")
+                    } else if (state == TelephonyManager.EXTRA_STATE_IDLE) {
+                        lastIncomingNumber = null
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
+        context.registerReceiver(phoneStateBroadcastReceiver, filter)
+        Log.d(TAG, "PhoneState BroadcastReceiver registered")
+    }
+
+    /**
+     * Unregister the PhoneState BroadcastReceiver
+     */
+    private fun unregisterPhoneStateBroadcastReceiver() {
+        try {
+            phoneStateBroadcastReceiver?.let {
+                context.unregisterReceiver(it)
+            }
+            phoneStateBroadcastReceiver = null
+            Log.d(TAG, "PhoneState BroadcastReceiver unregistered")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unregistering BroadcastReceiver: ${e.message}")
+        }
     }
 
     /**
