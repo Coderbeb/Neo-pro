@@ -332,11 +332,17 @@ class PhoneStateDetector(private val context: Context) {
                     for (window in windows) {
                         val windowRoot = window.root ?: continue
                         val pkg = windowRoot.packageName?.toString()?.lowercase() ?: ""
-                        // Skip our own app and system UI
-                        if (pkg.contains("autoapk") || pkg.contains("systemui") || 
-                            pkg.contains("launcher") || pkg.isEmpty()) continue
+                        // ONLY scan phone/dialer/incallui windows — skip everything else
+                        // This prevents WhatsApp, Telegram, translate overlays etc. from being read
+                        val isDialerApp = pkg.contains("dialer") || pkg.contains("phone") ||
+                            pkg.contains("incallui") || pkg.contains("telecom") ||
+                            pkg.contains("callerinfo") || pkg.contains("contacts")
+                        if (!isDialerApp || pkg.isEmpty()) {
+                            Log.d(TAG, "Skipping non-dialer window: $pkg")
+                            continue
+                        }
                         
-                        Log.d(TAG, "Scanning window: $pkg")
+                        Log.d(TAG, "Scanning dialer window: $pkg")
                         callerName = extractCallerNameFromScreen(windowRoot)
                         if (callerName != null) {
                             Log.i(TAG, "Caller identified from screen UI (pkg=$pkg): $callerName")
@@ -416,6 +422,12 @@ class PhoneStateDetector(private val context: Context) {
             "keypad", "contacts", "incoming voice call", "incoming video call",
             "slide to answer", "swipe to answer", "sim 1", "sim 2",
             "mobile", "work", "home", "other",
+            // Indian carrier / SIM names — these show on the call screen as labels
+            "jio", "airtel", "vi", "vodafone", "bsnl", "mtnl", "idea",
+            "jio 4g", "jio 5g", "airtel 4g", "airtel 5g", "vi 4g",
+            "reliance jio", "bharti airtel", "vodafone idea",
+            "sim", "sim card", "carrier", "network",
+            "jio true 5g", "airtel true 5g",
             // Status bar / notification text that gets picked up
             "screenshot", "screenshot saved", "screen recording", "screen record",
             "screenshot captured", "tap to view", "tap to open",
@@ -432,7 +444,17 @@ class PhoneStateDetector(private val context: Context) {
             "dismiss", "open", "share", "view", "copy", "send",
             // Common button text on call screens
             "hold", "swap", "merge", "record call", "add participant",
-            "switch", "camera", "video"
+            "switch", "camera", "video",
+            // Translation/overlay apps
+            "translate", "screen translate", "pretranslate", "translation",
+            "back pretranslate", "tap to translate",
+            // VoIP / messaging app names (show on call screens but are NOT caller names)
+            "whatsapp", "whatsapp voice call", "whatsapp video call",
+            "telegram", "telegram voice call", "telegram video call",
+            "google duo", "google meet", "duo", "meet",
+            "signal", "viber", "skype", "zoom", "discord",
+            "whatsapp call", "ongoing voice call", "ongoing video call",
+            "end-to-end encrypted"
         )
 
         // Words that indicate this text is NOT a person's name
@@ -441,7 +463,12 @@ class PhoneStateDetector(private val context: Context) {
             "charging", "battery", "connected", "disconnected", "enabled",
             "disabled", "turned", "download", "uploaded", "update",
             "installing", "installed", "error", "warning", "permission",
-            "tap", "swipe", "slide", "press", "hold", "click"
+            "tap", "swipe", "slide", "press", "hold", "click",
+            // Carrier / network related words
+            "4g", "5g", "lte", "volte", "network", "signal", "carrier",
+            "sim", "roaming", "no service", "emergency",
+            // VoIP call screen UI text
+            "encrypted", "ongoing", "voice", "missed", "ringing"
         )
 
         fun traverse(node: android.view.accessibility.AccessibilityNodeInfo) {

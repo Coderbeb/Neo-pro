@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -90,6 +93,11 @@ class GoogleVoiceCommandManager(private val context: Context) {
     private var audioRecord: AudioRecord? = null
     private var passiveThread: Thread? = null
     @Volatile private var isPassiveMode = false
+
+    // ANC: Audio effects applied to AudioRecord session
+    private var echoCanceler: AcousticEchoCanceler? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
+    private var gainControl: AutomaticGainControl? = null
     // When true, we stay in active SpeechRecognizer mode (after wake word / during active Neo)
     private var forceActiveMode = false
 
@@ -225,9 +233,49 @@ class GoogleVoiceCommandManager(private val context: Context) {
             audioRecord?.startRecording()
             isPassiveMode = true
             isListening = true
+
+            // === ANC: Apply audio effects for speaker echo cancellation ===
+            val sessionId = audioRecord!!.audioSessionId
+            try {
+                if (AcousticEchoCanceler.isAvailable()) {
+                    echoCanceler = AcousticEchoCanceler.create(sessionId)?.also {
+                        it.enabled = true
+                        Log.i(TAG, "✅ AcousticEchoCanceler enabled (session=$sessionId)")
+                    }
+                } else {
+                    Log.w(TAG, "AcousticEchoCanceler not available on this device")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "AcousticEchoCanceler failed: ${e.message}")
+            }
+            try {
+                if (NoiseSuppressor.isAvailable()) {
+                    noiseSuppressor = NoiseSuppressor.create(sessionId)?.also {
+                        it.enabled = true
+                        Log.i(TAG, "✅ NoiseSuppressor enabled (session=$sessionId)")
+                    }
+                } else {
+                    Log.w(TAG, "NoiseSuppressor not available on this device")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "NoiseSuppressor failed: ${e.message}")
+            }
+            try {
+                if (AutomaticGainControl.isAvailable()) {
+                    gainControl = AutomaticGainControl.create(sessionId)?.also {
+                        it.enabled = true
+                        Log.i(TAG, "✅ AutomaticGainControl enabled (session=$sessionId)")
+                    }
+                } else {
+                    Log.w(TAG, "AutomaticGainControl not available on this device")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "AutomaticGainControl failed: ${e.message}")
+            }
+
             updateStatus("🎤 Passive listening — media unaffected")
             listener?.onListeningStarted()
-            Log.i(TAG, "Passive listening started (AudioRecord, no audio focus)")
+            Log.i(TAG, "Passive listening started (AudioRecord, ANC enabled, no audio focus)")
 
             // Background thread for RMS monitoring
             passiveThread = Thread({
@@ -272,12 +320,16 @@ class GoogleVoiceCommandManager(private val context: Context) {
             passiveThread?.interrupt()
             passiveThread = null
         } catch (_: Exception) {}
+        // Release ANC audio effects
+        try { echoCanceler?.release(); echoCanceler = null } catch (_: Exception) {}
+        try { noiseSuppressor?.release(); noiseSuppressor = null } catch (_: Exception) {}
+        try { gainControl?.release(); gainControl = null } catch (_: Exception) {}
         try {
             audioRecord?.stop()
             audioRecord?.release()
             audioRecord = null
         } catch (_: Exception) {}
-        Log.d(TAG, "Passive listening stopped")
+        Log.d(TAG, "Passive listening stopped (ANC released)")
     }
 
     private fun calculateRMS(buffer: ShortArray, readSize: Int): Double {

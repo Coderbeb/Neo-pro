@@ -144,7 +144,10 @@ object SmartCommandMatcher {
         REMEMBER_FACE, FORGET_FACE, LIST_KNOWN_FACES,
         WHAT_CHANGED, IS_PATH_SAFE, FIND_OBJECT,
         START_NAVIGATION_MODE, STOP_NAVIGATION_MODE,
-        VISION_FOLLOW_UP
+        VISION_FOLLOW_UP,
+
+        // Sleep command
+        GO_TO_SLEEP
     }
 
     // ==================== EXACT PHRASES (instant HashMap lookup) ====================
@@ -262,25 +265,25 @@ object SmartCommandMatcher {
                          "रास्ता बताओ", "रास्ता दिखाओ", "नेविगेट करो"))
             put(p, CommandIntent.NAVIGATE)
 
-        // --- RAPIDO ---
-        for (p in listOf("open rapido", "rapido kholo", "book rapido", "rapido book karo",
-                         "rapido book", "book a ride", "ride book karo",
-                         "rapido se chalo", "rapido chalao",
-                         "रैपिडो खोलो", "रैपिडो बुक करो", "रैपिडो चलाओ",
-                         "रैपिडो से चलो", "rapido open karo"))
-            put(p, CommandIntent.BOOK_RAPIDO)
-
-        for (p in listOf("rapido pin", "my rapido pin", "pin batao", "mera pin kya hai",
-                         "what is my pin", "what's my pin", "rapido pin kya hai",
-                         "pin dikhao", "pin bata",
-                         "पिन बताओ", "मेरा पिन क्या है", "रैपिडो पिन"))
-            put(p, CommandIntent.READ_RAPIDO_PIN)
-
-        for (p in listOf("cancel ride", "ride cancel karo", "cancel rapido",
-                         "rapido cancel karo", "rapido cancel",
-                         "ride cancel", "booking cancel karo",
-                         "राइड कैंसल करो", "रैपिडो कैंसल करो"))
-            put(p, CommandIntent.CANCEL_RAPIDO)
+        // --- RAPIDO (disabled — feature not shown) ---
+         for (p in listOf("open rapido", "rapido kholo", "book rapido", "rapido book karo",
+                          "rapido book", "book a ride", "ride book karo",
+                          "rapido se chalo", "rapido chalao",
+                          "रैपिडो खोलो", "रैपिडो बुक करो", "रैपिडो चलाओ",
+                          "रैपिडो से चलो", "rapido open karo"))
+             put(p, CommandIntent.BOOK_RAPIDO)
+        
+        // for (p in listOf("rapido pin", "my rapido pin", "pin batao", "mera pin kya hai",
+        //                  "what is my pin", "what's my pin", "rapido pin kya hai",
+        //                  "pin dikhao", "pin bata",
+        //                  "पिन बताओ", "मेरा पिन क्या है", "रैपिडो पिन"))
+        //     put(p, CommandIntent.READ_RAPIDO_PIN)
+        
+         for (p in listOf("cancel ride", "ride cancel karo", "cancel rapido",
+                          "rapido cancel karo", "rapido cancel",
+                          "ride cancel", "booking cancel karo",
+                          "राइड कैंसल करो", "रैपिडो कैंसल करो"))
+             put(p, CommandIntent.CANCEL_RAPIDO)
 
         // --- GENERIC QS TILES (eye comfort, power saving, etc.) ---
         for (p in listOf("eye comfort on", "eye comfort off", "blue light on", "blue light off",
@@ -326,7 +329,9 @@ object SmartCommandMatcher {
                          "mere samne kya dikh rha hai", "kya dikh raha hai", "kya dikh rha hai",
                          "mere aas paas kya hai", "aas paas kya hai",
                          "samne kya dikh raha hai", "kya hai samne",
-                         "sab kuch batao", "describe scene", "scene describe karo"))
+                         "sab kuch batao", "describe scene", "scene describe karo",
+                         "kya hai", "ye kya hai", "yeh kya hai", "what is this",
+                         "what is that", "what's this", "what's that"))
             put(p, CommandIntent.DESCRIBE_SCENE)
 
         for (p in listOf("who is there", "who is in front of me", "who can you see",
@@ -374,6 +379,13 @@ object SmartCommandMatcher {
         for (p in listOf("who do you know", "list known faces",
                          "how many faces do you know", "which faces do you know"))
             put(p, CommandIntent.LIST_KNOWN_FACES)
+
+        // --- SLEEP COMMAND ---
+        for (p in listOf("neo sleep", "go to sleep", "sleep now", "neo so jao",
+                         "so jao", "sone jao", "neo sone jao", "good night neo",
+                         "goodnight neo", "neo goodnight", "neo good night",
+                         "sleep mode", "neo sleep mode"))
+            put(p, CommandIntent.GO_TO_SLEEP)
     }
 
     // ==================== KEYWORD DATABASE ====================
@@ -754,19 +766,19 @@ object SmartCommandMatcher {
             setOf("navigate", "navigation", "direction", "directions", "rasta", "route", "नेविगेट", "रास्ता", "दिशा")
         ), weight = 1.3f),
 
-        // === RAPIDO ===
-        IntentKeywords(CommandIntent.BOOK_RAPIDO, listOf(
-            setOf("rapido", "रैपिडो"),
-            setOf("open", "book", "kholo", "chalo", "chalao", "ride", "खोलो", "बुक", "चलाओ", "चलो")
-        ), weight = 1.5f),
-        IntentKeywords(CommandIntent.READ_RAPIDO_PIN, listOf(
-            setOf("pin", "पिन"),
-            setOf("rapido", "batao", "kya", "dikhao", "bata", "रैपिडो", "बताओ", "क्या", "दिखाओ", "my", "mera", "मेरा")
-        ), weight = 1.4f),
-        IntentKeywords(CommandIntent.CANCEL_RAPIDO, listOf(
-            setOf("cancel", "कैंसल", "रद्द"),
-            setOf("ride", "rapido", "booking", "राइड", "रैपिडो", "बुकिंग")
-        ), weight = 1.5f, requireAll = true),
+        // === RAPIDO (disabled — feature not shown) ===
+        // IntentKeywords(CommandIntent.BOOK_RAPIDO, listOf(
+        //     setOf("rapido", "रैपिडो"),
+        //     setOf("open", "book", "kholo", "chalo", "chalao", "ride", "खोलो", "बुक", "चलाओ", "चलो")
+        // ), weight = 1.5f),
+        // IntentKeywords(CommandIntent.READ_RAPIDO_PIN, listOf(
+        //     setOf("pin", "पिन"),
+        //     setOf("rapido", "batao", "kya", "dikhao", "bata", "रैपिडो", "बताओ", "क्या", "दिखाओ", "my", "mera", "मेरा")
+        // ), weight = 1.4f, requireAll = true),
+        // IntentKeywords(CommandIntent.CANCEL_RAPIDO, listOf(
+        //     setOf("cancel", "कैंसल", "रद्द"),
+        //     setOf("ride", "rapido", "booking", "राइड", "रैपिडो", "बुकिंग")
+        // ), weight = 1.5f, requireAll = true),
 
         // === VISION ASSISTANCE ===
         IntentKeywords(CommandIntent.DESCRIBE_SCENE, listOf(
@@ -811,8 +823,8 @@ object SmartCommandMatcher {
         ), weight = 1.5f),
         IntentKeywords(CommandIntent.FIND_OBJECT, listOf(
             setOf("where", "find", "locate", "kahan", "dhundho", "dikha", "कहाँ", "ढूंढो", "दिखा"),
-            setOf("my", "the", "mera", "meri", "bag", "phone", "keys", "मेरा", "मेरी")
-        ), weight = 1.3f),
+            setOf("my", "the", "mera", "meri", "bag", "keys", "wallet", "bottle", "glasses", "मेरा", "मेरी")
+        ), weight = 1.3f, requireAll = true),
         IntentKeywords(CommandIntent.START_NAVIGATION_MODE, listOf(
             setOf("guide", "navigation", "navigate", "rasta", "chalte", "गाइड", "रास्ता", "चलते"),
             setOf("walking", "mode", "start", "dikhao", "waqt", "batao", "दिखाओ", "बताओ")
@@ -820,7 +832,13 @@ object SmartCommandMatcher {
         IntentKeywords(CommandIntent.STOP_NAVIGATION_MODE, listOf(
             setOf("stop", "band", "बंद"),
             setOf("navigation", "guiding", "navigate", "guide", "rasta", "नेविगेशन", "रास्ता")
-        ), weight = 1.4f, requireAll = true)
+        ), weight = 1.4f, requireAll = true),
+
+        // === SLEEP COMMAND ===
+        IntentKeywords(CommandIntent.GO_TO_SLEEP, listOf(
+            setOf("sleep", "so", "sone", "soja", "goodnight", "सो", "सोने", "सोजा"),
+            setOf("jao", "now", "mode", "night", "good", "जाओ", "अभी")
+        ), weight = 2.0f)
     )
 
     // ==================== FILLER WORDS ====================

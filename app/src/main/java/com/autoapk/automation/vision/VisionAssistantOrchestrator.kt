@@ -50,7 +50,7 @@ class VisionAssistantOrchestrator(
 
     private var isInitialized = false
     private var lastApiCallTime = 0L
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     /** Language mode — set by CommandProcessor before each vision call */
     var isHindiMode: Boolean = false

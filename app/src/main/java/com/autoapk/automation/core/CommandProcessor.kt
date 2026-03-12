@@ -381,7 +381,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 rapidoPendingDestination = ""
                 rapidoSuggestions = emptyList()
                 rapidoSelectedRideType = ""
-                isOnActiveCall = false
                 service?.speak("Stopped")
                 return true
             } else {
@@ -419,7 +418,6 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             rapidoPendingDestination = ""
             rapidoSuggestions = emptyList()
             rapidoSelectedRideType = ""
-            isOnActiveCall = false
             service?.speak("Stopped")
             lastProcessedCommand = command
             lastProcessedTime = now
@@ -738,12 +736,111 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
      * Execute a matched intent by routing to the appropriate action handler.
      * This replaces the old rigid `when` block with intent-based dispatch.
      */
+    // Intents that work even when the phone screen is locked
+    private val lockedScreenAllowedIntents = setOf(
+        // Core controls
+        SmartCommandMatcher.CommandIntent.STOP_ALL,
+        SmartCommandMatcher.CommandIntent.STOP_SPEAKING,
+        SmartCommandMatcher.CommandIntent.GO_TO_SLEEP,
+        SmartCommandMatcher.CommandIntent.UNLOCK_PHONE,
+        SmartCommandMatcher.CommandIntent.LOCK_PHONE,
+
+        // Phone calls
+        SmartCommandMatcher.CommandIntent.CALL_CONTACT,
+        SmartCommandMatcher.CommandIntent.ANSWER_CALL,
+        SmartCommandMatcher.CommandIntent.END_CALL,
+        SmartCommandMatcher.CommandIntent.TOGGLE_SPEAKER,
+
+        // Volume
+        SmartCommandMatcher.CommandIntent.VOLUME_UP,
+        SmartCommandMatcher.CommandIntent.VOLUME_DOWN,
+        SmartCommandMatcher.CommandIntent.MUTE,
+        SmartCommandMatcher.CommandIntent.UNMUTE,
+
+        // Connectivity toggles (quick settings panel)
+        SmartCommandMatcher.CommandIntent.WIFI_ON,
+        SmartCommandMatcher.CommandIntent.WIFI_OFF,
+        SmartCommandMatcher.CommandIntent.BLUETOOTH_ON,
+        SmartCommandMatcher.CommandIntent.BLUETOOTH_OFF,
+        SmartCommandMatcher.CommandIntent.MOBILE_DATA_ON,
+        SmartCommandMatcher.CommandIntent.MOBILE_DATA_OFF,
+        SmartCommandMatcher.CommandIntent.DND_ON,
+        SmartCommandMatcher.CommandIntent.DND_OFF,
+        SmartCommandMatcher.CommandIntent.HOTSPOT_ON,
+        SmartCommandMatcher.CommandIntent.HOTSPOT_OFF,
+        SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_ON,
+        SmartCommandMatcher.CommandIntent.AIRPLANE_MODE_OFF,
+        SmartCommandMatcher.CommandIntent.LOCATION_ON,
+        SmartCommandMatcher.CommandIntent.LOCATION_OFF,
+        SmartCommandMatcher.CommandIntent.TOGGLE_QS_TILE,
+
+        // Flashlight
+        SmartCommandMatcher.CommandIntent.FLASHLIGHT_ON,
+        SmartCommandMatcher.CommandIntent.FLASHLIGHT_OFF,
+
+        // Media controls
+        SmartCommandMatcher.CommandIntent.PLAY_MUSIC,
+        SmartCommandMatcher.CommandIntent.PAUSE_MUSIC,
+        SmartCommandMatcher.CommandIntent.NEXT_SONG,
+        SmartCommandMatcher.CommandIntent.PREVIOUS_SONG,
+        SmartCommandMatcher.CommandIntent.TOGGLE_PLAY_PAUSE,
+        SmartCommandMatcher.CommandIntent.STOP_MUSIC,
+
+        // Battery (informational)
+        SmartCommandMatcher.CommandIntent.READ_BATTERY,
+
+        // Vision assistance (camera-based, doesn't need unlock)
+        SmartCommandMatcher.CommandIntent.DESCRIBE_SCENE,
+        SmartCommandMatcher.CommandIntent.WHO_IS_THERE,
+        SmartCommandMatcher.CommandIntent.READ_TEXT_VISION,
+        SmartCommandMatcher.CommandIntent.WHAT_CHANGED,
+        SmartCommandMatcher.CommandIntent.IS_PATH_SAFE,
+        SmartCommandMatcher.CommandIntent.FIND_OBJECT,
+        SmartCommandMatcher.CommandIntent.START_AUTO_DESCRIBE,
+        SmartCommandMatcher.CommandIntent.STOP_AUTO_DESCRIBE,
+        SmartCommandMatcher.CommandIntent.START_NAVIGATION_MODE,
+        SmartCommandMatcher.CommandIntent.STOP_NAVIGATION_MODE,
+        SmartCommandMatcher.CommandIntent.VISION_FOLLOW_UP,
+        SmartCommandMatcher.CommandIntent.REMEMBER_FACE,
+        SmartCommandMatcher.CommandIntent.FORGET_FACE,
+        SmartCommandMatcher.CommandIntent.LIST_KNOWN_FACES,
+
+        // Brightness
+        SmartCommandMatcher.CommandIntent.BRIGHTNESS_UP,
+        SmartCommandMatcher.CommandIntent.BRIGHTNESS_DOWN,
+        SmartCommandMatcher.CommandIntent.BRIGHTNESS_MAX,
+        SmartCommandMatcher.CommandIntent.BRIGHTNESS_MIN,
+        SmartCommandMatcher.CommandIntent.BRIGHTNESS_HALF,
+
+        // Alarm & Timer
+        SmartCommandMatcher.CommandIntent.SET_ALARM,
+        SmartCommandMatcher.CommandIntent.SET_TIMER,
+
+        // SMS reading
+        SmartCommandMatcher.CommandIntent.READ_SMS
+    )
+
+    /**
+     * Check if the phone screen is currently locked (keyguard active).
+     */
+    private fun isPhoneLocked(): Boolean {
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        return keyguardManager.isKeyguardLocked
+    }
+
     private fun executeIntent(
         intent: SmartCommandMatcher.CommandIntent,
         command: String,
         rawCommand: String,
         param: String = ""
     ): Boolean {
+        // Block non-essential commands when phone is locked
+        if (isPhoneLocked() && intent !in lockedScreenAllowedIntents) {
+            Log.i("Neo_CmdProc", "Blocked intent $intent — phone is locked")
+            service?.speak("Phone is locked. Please unlock first.")
+            return false
+        }
+
         return when (intent) {
             // === STOP ALL ===
             SmartCommandMatcher.CommandIntent.STOP_ALL -> {
@@ -759,6 +856,18 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             // === STOP TTS ===
             SmartCommandMatcher.CommandIntent.STOP_SPEAKING -> {
                 service?.stopSpeaking(); true
+            }
+
+            // === GO TO SLEEP ===
+            SmartCommandMatcher.CommandIntent.GO_TO_SLEEP -> {
+                val state = neoState
+                if (state != null) {
+                    // sleep() handles the announcement ("Going to sleep" / "Sone ja raha hu")
+                    state.sleep()
+                } else {
+                    service?.speak("Sleep mode is not available")
+                }
+                true
             }
 
             // === NAVIGATION ===
@@ -1312,8 +1421,8 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                 true
             }
             SmartCommandMatcher.CommandIntent.REMEMBER_FACE -> {
-                // Extract name: "remember this face as Rajesh" / "remember him as Rajesh" → "Rajesh"
-                val name = command.replace(Regex(".*(?:face\\s+as|him\\s+as|her\\s+as|this\\s+as|face|chehra)\\s*", RegexOption.IGNORE_CASE), "").trim()
+                // Extract name: "remember this face as Rajesh" / "remember him as Rajesh" / "remember him is Rajesh" → "Rajesh"
+                val name = command.replace(Regex(".*(?:face\\s+(?:as|is)|him\\s+(?:as|is)|her\\s+(?:as|is)|this\\s+(?:as|is)|this\\s+is|face|chehra)\\s*", RegexOption.IGNORE_CASE), "").trim()
                     .ifBlank { param }
                 if (name.isNotBlank()) {
                     getVision().rememberFace(name)
@@ -2019,11 +2128,11 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
     ): Boolean {
         return when (result) {
             DirectToggleController.ToggleResult.SUCCESS -> {
-                service?.speak("$name toggled")
+                service?.speak("$name turned ${if (enabled) "on" else "off"}")
                 true
             }
             DirectToggleController.ToggleResult.ALREADY_IN_STATE -> {
-                service?.speak("$name is already in the desired state")
+                service?.speak("$name is already ${if (enabled) "on" else "off"}")
                 true
             }
             DirectToggleController.ToggleResult.NEEDS_PERMISSION -> {
@@ -2393,7 +2502,7 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
                     "switch camera", "flip camera", "toggle camera")
 
                 val switchClicked = switchLabels.any { switchLabel ->
-                    svc.findAndClickSmart(switchLabel) == true
+                    svc.findAndClickSmart(switchLabel, silent = true) == true
                 }
 
                 if (switchClicked) {
@@ -2421,9 +2530,9 @@ class CommandProcessor(private val context: Context, private val appRegistry: Ap
             // Step 4: Wait 3 seconds for positioning/focus, then capture
             handler.postDelayed({
                 // Step 5: Click shutter/capture
-                val captureClicked = svc.findAndClickSmart("shutter") == true ||
-                    svc.findAndClickSmart("capture") == true ||
-                    svc.findAndClickSmart("take") == true
+                val captureClicked = svc.findAndClickSmart("shutter", silent = true) == true ||
+                    svc.findAndClickSmart("capture", silent = true) == true ||
+                    svc.findAndClickSmart("take", silent = true) == true
 
                 if (captureClicked) {
                     Log.i(TAG, "$label captured via shutter button")
